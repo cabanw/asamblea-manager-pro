@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, UserCheck, UserPlus, CheckCircle2, XCircle } from "lucide-react";
+import { Users, UserCheck, UserPlus, CheckCircle2, XCircle, Settings } from "lucide-react";
 import { QuorumStatus } from "@/components/QuorumStatus";
 import { RegisterMember } from "@/components/RegisterMember";
 import { RegisterGuest } from "@/components/RegisterGuest";
 import { AttendanceManager } from "@/components/AttendanceManager";
 import { ReportsSection } from "@/components/ReportsSection";
+import { PositionManager } from "@/components/PositionManager";
 import logo from "@/assets/FIADAH_Logo.jpg";
 
 const Index = () => {
@@ -202,10 +203,14 @@ const Index = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="register" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[600px] mx-auto">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[800px] mx-auto">
             <TabsTrigger value="register">Register</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="settings" className="flex items-center gap-1">
+              <Settings className="h-4 w-4" />
+              Settings
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="register" className="space-y-6 mt-6">
@@ -221,6 +226,10 @@ const Index = () => {
 
           <TabsContent value="reports" className="mt-6">
             <ReportsSection sessionId={activeSession?.id} stats={stats} />
+          </TabsContent>
+
+          <TabsContent value="settings" className="mt-6">
+            <PositionManager />
           </TabsContent>
         </Tabs>
       </div>

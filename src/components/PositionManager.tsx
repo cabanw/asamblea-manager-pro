@@ -34,13 +34,10 @@ type PositionType = Database["public"]["Enums"]["position_type"];
 type Position = Database["public"]["Tables"]["positions"]["Row"];
 
 const POSITION_TYPES: PositionType[] = [
-  "president",
-  "vice_president",
-  "secretary",
-  "treasurer",
-  "board_member",
-  "member",
-];
+  "Ministro Certificado",
+  "Ministro Licenciado",
+  "Ministro Ordenado",
+  ];
 
 export const PositionManager = () => {
   const [positions, setPositions] = useState<Position[]>([]);

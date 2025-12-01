@@ -8,6 +8,7 @@ import { RegisterMember } from "@/components/RegisterMember";
 import { RegisterGuest } from "@/components/RegisterGuest";
 import { AttendanceManager } from "@/components/AttendanceManager";
 import { ReportsSection } from "@/components/ReportsSection";
+import logo from "@/assets/FIADAH_Logo.jpg";
 
 const Index = () => {
   const [activeSession, setActiveSession] = useState<any>(null);
@@ -132,7 +133,10 @@ const Index = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header */}
-        <div className="text-center space-y-2 py-8">
+        <div className="text-center space-y-4 py-8">
+          <div className="flex justify-center">
+            <img src={logo} alt="FIADAH Logo" className="h-24 w-24 object-contain" />
+          </div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             Assembly Management System
           </h1>

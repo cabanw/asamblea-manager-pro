@@ -37,19 +37,21 @@ const POSITION_TYPES: PositionType[] = [
   "Ministro Certificado",
   "Ministro Licenciado",
   "Ministro Ordenado",
-  ];
+];
 
 export const PositionManager = () => {
+  const defaultForm = {
+    name: "",
+    type: POSITION_TYPES[0], // default valid enum value
+    quorum_weight: 1,
+  };
+
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    type: "member" as PositionType,
-    quorum_weight: 1,
-  });
+  const [formData, setFormData] = useState(defaultForm);
 
   useEffect(() => {
     loadPositions();
@@ -65,12 +67,11 @@ export const PositionManager = () => {
       toast.error("Failed to load positions");
       return;
     }
+
     setPositions(data || []);
   };
 
-  const resetForm = () => {
-    setFormData({ name: "", type: "member", quorum_weight: 1 });
-  };
+  const resetForm = () => setFormData(defaultForm);
 
   const handleAdd = async () => {
     if (!formData.name.trim()) {
@@ -89,10 +90,11 @@ export const PositionManager = () => {
       toast.error("Failed to add position: " + error.message);
     } else {
       toast.success("Position added successfully");
-      loadPositions();
+      await loadPositions();
       setIsAddOpen(false);
       resetForm();
     }
+
     setLoading(false);
   };
 
@@ -116,11 +118,12 @@ export const PositionManager = () => {
       toast.error("Failed to update position: " + error.message);
     } else {
       toast.success("Position updated successfully");
-      loadPositions();
+      await loadPositions();
       setIsEditOpen(false);
       setEditingPosition(null);
       resetForm();
     }
+
     setLoading(false);
   };
 
@@ -137,8 +140,9 @@ export const PositionManager = () => {
       toast.error("Failed to delete position: " + error.message);
     } else {
       toast.success("Position deleted successfully");
-      loadPositions();
+      await loadPositions();
     }
+
     setLoading(false);
   };
 
@@ -152,14 +156,13 @@ export const PositionManager = () => {
     setIsEditOpen(true);
   };
 
-  const formatType = (type: string) => {
-    return type
-      .split("_")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ");
-  };
-
-  const PositionForm = ({ onSubmit, submitLabel }: { onSubmit: () => void; submitLabel: string }) => (
+  const PositionForm = ({
+    onSubmit,
+    submitLabel,
+  }: {
+    onSubmit: () => void;
+    submitLabel: string;
+  }) => (
     <div className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Position Name</Label>
@@ -167,9 +170,10 @@ export const PositionManager = () => {
           id="name"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="e.g., Senior Member"
+          placeholder="e.g., Ministro Principal"
         />
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="type">Position Type</Label>
         <Select
@@ -184,12 +188,13 @@ export const PositionManager = () => {
           <SelectContent className="bg-background border z-50">
             {POSITION_TYPES.map((type) => (
               <SelectItem key={type} value={type}>
-                {formatType(type)}
+                {type}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
+
       <div className="space-y-2">
         <Label htmlFor="weight">Quorum Weight</Label>
         <Input
@@ -199,14 +204,18 @@ export const PositionManager = () => {
           max={10}
           value={formData.quorum_weight}
           onChange={(e) =>
-            setFormData({ ...formData, quorum_weight: parseInt(e.target.value) || 1 })
+            setFormData({
+              ...formData,
+              quorum_weight: parseInt(e.target.value) || 1,
+            })
           }
         />
         <p className="text-xs text-muted-foreground">
           Weight applied when calculating quorum (default: 1)
         </p>
       </div>
-      <Button onClick={onSubmit} disabled={loading} className="w-full">
+
+      <Button disabled={loading} onClick={onSubmit} className="w-full">
         {loading ? "Saving..." : submitLabel}
       </Button>
     </div>
@@ -219,6 +228,7 @@ export const PositionManager = () => {
           <Settings className="h-5 w-5" />
           Position Management
         </CardTitle>
+
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={resetForm}>
@@ -226,14 +236,17 @@ export const PositionManager = () => {
               Add Position
             </Button>
           </DialogTrigger>
+
           <DialogContent className="bg-background">
             <DialogHeader>
               <DialogTitle>Add New Position</DialogTitle>
             </DialogHeader>
+
             <PositionForm onSubmit={handleAdd} submitLabel="Add Position" />
           </DialogContent>
         </Dialog>
       </CardHeader>
+
       <CardContent>
         <Table>
           <TableHeader>
@@ -244,14 +257,16 @@ export const PositionManager = () => {
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
+
           <TableBody>
             {positions.map((position) => (
               <TableRow key={position.id}>
                 <TableCell className="font-medium">{position.name}</TableCell>
-                <TableCell>{formatType(position.type)}</TableCell>
+                <TableCell>{position.type}</TableCell>
                 <TableCell className="text-center">
                   {position.quorum_weight}
                 </TableCell>
+
                 <TableCell className="text-right space-x-2">
                   <Button
                     variant="ghost"
@@ -260,6 +275,7 @@ export const PositionManager = () => {
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
+
                   <Button
                     variant="ghost"
                     size="icon"
@@ -271,9 +287,13 @@ export const PositionManager = () => {
                 </TableCell>
               </TableRow>
             ))}
+
             {positions.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell
+                  colSpan={4}
+                  className="text-center text-muted-foreground py-8"
+                >
                   No positions found. Add your first position.
                 </TableCell>
               </TableRow>
@@ -287,6 +307,7 @@ export const PositionManager = () => {
             <DialogHeader>
               <DialogTitle>Edit Position</DialogTitle>
             </DialogHeader>
+
             <PositionForm onSubmit={handleEdit} submitLabel="Save Changes" />
           </DialogContent>
         </Dialog>

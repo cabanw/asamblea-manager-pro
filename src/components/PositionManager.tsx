@@ -33,17 +33,30 @@ import type { Database } from "@/integrations/supabase/types";
 type PositionType = Database["public"]["Enums"]["position_type"];
 type Position = Database["public"]["Tables"]["positions"]["Row"];
 
+// Valid database enum values
 const POSITION_TYPES: PositionType[] = [
-  "Ministro Certificado",
-  "Ministro Licenciado",
-  "Ministro Ordenado",
-  "Delegado",
+  "president",
+  "vice_president",
+  "secretary",
+  "treasurer",
+  "board_member",
+  "member",
 ];
+
+// Display labels
+const POSITION_TYPE_LABELS: Record<PositionType, string> = {
+  president: "Presidente",
+  vice_president: "Vice Presidente",
+  secretary: "Secretario",
+  treasurer: "Tesorero",
+  board_member: "Miembro de Junta",
+  member: "Miembro",
+};
 
 export const PositionManager = () => {
   const defaultForm = {
     name: "",
-    type: POSITION_TYPES[0], // default valid enum value
+    type: "member" as PositionType,
     quorum_weight: 1,
   };
 
@@ -166,17 +179,17 @@ export const PositionManager = () => {
   }) => (
     <div className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="name">Position Name</Label>
+        <Label htmlFor="name">Nombre de la Posición</Label>
         <Input
           id="name"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="e.g., Ministro Principal"
+          placeholder="Ej: Ministro Ordenado"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="type">Position Type</Label>
+        <Label htmlFor="type">Tipo de Posición</Label>
         <Select
           value={formData.type}
           onValueChange={(value: PositionType) =>
@@ -184,12 +197,12 @@ export const PositionManager = () => {
           }
         >
           <SelectTrigger className="bg-background">
-            <SelectValue placeholder="Select type" />
+            <SelectValue placeholder="Seleccionar tipo" />
           </SelectTrigger>
           <SelectContent className="bg-background border z-50">
             {POSITION_TYPES.map((type) => (
               <SelectItem key={type} value={type}>
-                {type}
+                {POSITION_TYPE_LABELS[type]}
               </SelectItem>
             ))}
           </SelectContent>
@@ -197,7 +210,7 @@ export const PositionManager = () => {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="weight">Quorum Weight</Label>
+        <Label htmlFor="weight">Peso para Quorum</Label>
         <Input
           id="weight"
           type="number"
@@ -212,12 +225,12 @@ export const PositionManager = () => {
           }
         />
         <p className="text-xs text-muted-foreground">
-          Weight applied when calculating quorum (default: 1)
+          Peso aplicado al calcular el quorum (default: 1)
         </p>
       </div>
 
       <Button disabled={loading} onClick={onSubmit} className="w-full">
-        {loading ? "Saving..." : submitLabel}
+        {loading ? "Guardando..." : submitLabel}
       </Button>
     </div>
   );
@@ -227,23 +240,23 @@ export const PositionManager = () => {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Settings className="h-5 w-5" />
-          Position Management
+          Gestión de Posiciones
         </CardTitle>
 
         <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
           <DialogTrigger asChild>
             <Button size="sm" onClick={resetForm}>
               <Plus className="h-4 w-4 mr-1" />
-              Add Position
+              Agregar Posición
             </Button>
           </DialogTrigger>
 
           <DialogContent className="bg-background">
             <DialogHeader>
-              <DialogTitle>Add New Position</DialogTitle>
+              <DialogTitle>Agregar Nueva Posición</DialogTitle>
             </DialogHeader>
 
-            <PositionForm onSubmit={handleAdd} submitLabel="Add Position" />
+            <PositionForm onSubmit={handleAdd} submitLabel="Agregar Posición" />
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -252,10 +265,10 @@ export const PositionManager = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-center">Quorum Weight</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead className="text-center">Peso Quorum</TableHead>
+              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
 
@@ -263,7 +276,7 @@ export const PositionManager = () => {
             {positions.map((position) => (
               <TableRow key={position.id}>
                 <TableCell className="font-medium">{position.name}</TableCell>
-                <TableCell>{position.type}</TableCell>
+                <TableCell>{POSITION_TYPE_LABELS[position.type]}</TableCell>
                 <TableCell className="text-center">
                   {position.quorum_weight}
                 </TableCell>
@@ -295,7 +308,7 @@ export const PositionManager = () => {
                   colSpan={4}
                   className="text-center text-muted-foreground py-8"
                 >
-                  No positions found. Add your first position.
+                  No hay posiciones. Agregue su primera posición.
                 </TableCell>
               </TableRow>
             )}
@@ -306,10 +319,10 @@ export const PositionManager = () => {
         <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DialogContent className="bg-background">
             <DialogHeader>
-              <DialogTitle>Edit Position</DialogTitle>
+              <DialogTitle>Editar Posición</DialogTitle>
             </DialogHeader>
 
-            <PositionForm onSubmit={handleEdit} submitLabel="Save Changes" />
+            <PositionForm onSubmit={handleEdit} submitLabel="Guardar Cambios" />
           </DialogContent>
         </Dialog>
       </CardContent>

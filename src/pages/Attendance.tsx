@@ -1,16 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { AttendanceManager } from '@/components/AttendanceManager';
 import { QuorumStatus } from '@/components/QuorumStatus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Users, UserPlus, ClipboardList, LogIn } from 'lucide-react';
+import { Users, UserPlus } from 'lucide-react';
 
-const Index = () => {
-  const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
-  const [sessionName, setSessionName] = useState<string>('');
+const Attendance = () => {
+  const [sessionId, setSessionId] = useState<string | undefined>();
   const [stats, setStats] = useState({
     totalMembers: 0,
     presentMembers: 0,
@@ -23,16 +19,38 @@ const Index = () => {
     loadActiveSession();
   }, []);
 
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const channel = supabase
+      .channel('attendance-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_records',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        () => loadStats(sessionId)
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId]);
+
   const loadActiveSession = async () => {
-    const { data: session } = await supabase
+    const { data: existingSession } = await supabase
       .from('assembly_sessions')
       .select('*')
       .eq('status', 'active')
       .maybeSingle();
 
-    if (session) {
-      setSessionName(session.name);
-      loadStats(session.id);
+    if (existingSession) {
+      setSessionId(existingSession.id);
+      loadStats(existingSession.id);
     }
   };
 
@@ -59,42 +77,8 @@ const Index = () => {
     });
   };
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-        <Card className="w-full max-w-md text-center">
-          <CardHeader>
-            <CardTitle className="text-2xl">Sistema de Asamblea</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-muted-foreground">Bienvenido. Inicia sesión para continuar.</p>
-            <Button onClick={() => navigate('/auth')} className="w-full gap-2">
-              <LogIn className="h-4 w-4" />
-              Iniciar Sesión
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto px-4 py-6 space-y-6">
-      {sessionName && (
-        <div className="text-center">
-          <h1 className="text-2xl font-bold">{sessionName}</h1>
-          <p className="text-muted-foreground">Sesión activa</p>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <QuorumStatus
           presentMembers={stats.presentMembers}
@@ -125,37 +109,14 @@ const Index = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.presentGuests}</div>
+            <p className="text-xs text-muted-foreground">presentes ahora</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/register')}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Registro
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Registrar miembros e invitados</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => navigate('/attendance')}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ClipboardList className="h-5 w-5" />
-              Asistencia
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Gestionar asistencia</p>
-          </CardContent>
-        </Card>
-      </div>
+      <AttendanceManager sessionId={sessionId} onUpdate={() => sessionId && loadStats(sessionId)} />
     </div>
   );
 };
 
-export default Index;
+export default Attendance;

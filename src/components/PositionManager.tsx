@@ -37,6 +37,7 @@ const POSITION_TYPES: PositionType[] = [
   "Ministro Certificado",
   "Ministro Licenciado",
   "Ministro Ordenado",
+  "Delegado",
 ];
 
 export const PositionManager = () => {

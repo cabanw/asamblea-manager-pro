@@ -1,25 +1,30 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import FiadahLogo from '@/assets/FIADAH_Logo.jpg';
 
 const authSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  fullName: z.string().min(2, 'Name must be at least 2 characters').optional(),
+  email: z.string().email('Correo electrónico inválido'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+  fullName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
 });
 
 const Auth = () => {
   const navigate = useNavigate();
   const { user, signIn, signUp, loading } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   
   const [loginData, setLoginData] = useState({ email: '', password: '' });
   const [signupData, setSignupData] = useState({ email: '', password: '', fullName: '' });
@@ -40,12 +45,12 @@ const Auth = () => {
       
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error('Invalid email or password');
+          toast.error('Correo o contraseña inválidos');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success('Welcome back!');
+        toast.success('¡Bienvenido!');
         navigate('/');
       }
     } catch (err) {
@@ -67,12 +72,12 @@ const Auth = () => {
       
       if (error) {
         if (error.message.includes('already registered')) {
-          toast.error('This email is already registered. Please sign in instead.');
+          toast.error('Este correo ya está registrado. Por favor inicia sesión.');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success('Account created successfully!');
+        toast.success('¡Cuenta creada exitosamente!');
         navigate('/');
       }
     } catch (err) {
@@ -81,6 +86,34 @@ const Auth = () => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsResetting(true);
+
+    try {
+      const emailValidation = z.string().email('Correo electrónico inválido');
+      emailValidation.parse(resetEmail);
+
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success('Se ha enviado un enlace de recuperación a tu correo');
+        setIsResetDialogOpen(false);
+        setResetEmail('');
+      }
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        toast.error(err.errors[0].message);
+      }
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -136,6 +169,40 @@ const Auth = () => {
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? 'Iniciando sesión...' : 'Iniciar Sesión'}
                 </Button>
+                
+                <div className="text-center">
+                  <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="link" className="text-sm text-muted-foreground">
+                        ¿Olvidaste tu contraseña?
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Restablecer Contraseña</DialogTitle>
+                        <DialogDescription>
+                          Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handlePasswordReset} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="reset-email">Email</Label>
+                          <Input
+                            id="reset-email"
+                            type="email"
+                            placeholder="correo@ejemplo.com"
+                            value={resetEmail}
+                            onChange={(e) => setResetEmail(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <Button type="submit" className="w-full" disabled={isResetting}>
+                          {isResetting ? 'Enviando...' : 'Enviar Enlace de Recuperación'}
+                        </Button>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </form>
             </TabsContent>
             

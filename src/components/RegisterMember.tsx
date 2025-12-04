@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UserPlus, QrCode } from "lucide-react";
+import { QRScanner } from "./QRScanner";
 
 interface RegisterMemberProps {
   sessionId: string | undefined;
@@ -23,6 +24,7 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
     position_id: "",
   });
   const [loading, setLoading] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
     loadPositions();
@@ -31,6 +33,43 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
   const loadPositions = async () => {
     const { data } = await supabase.from("positions").select("*").order("name");
     if (data) setPositions(data);
+  };
+
+  const handleQRScan = async (scannedData: string) => {
+    // Try to parse the scanned data - could be just an ID number or JSON
+    let idNumber = scannedData;
+    
+    try {
+      const parsed = JSON.parse(scannedData);
+      if (parsed.id_number) idNumber = parsed.id_number;
+      if (parsed.name) setFormData(prev => ({ ...prev, name: parsed.name }));
+      if (parsed.email) setFormData(prev => ({ ...prev, email: parsed.email }));
+      if (parsed.phone) setFormData(prev => ({ ...prev, phone: parsed.phone }));
+    } catch {
+      // Not JSON, treat as plain ID number
+    }
+
+    setFormData(prev => ({ ...prev, id_number: idNumber }));
+
+    // Try to find existing member
+    const { data: existingMember } = await supabase
+      .from("members")
+      .select("*")
+      .eq("id_number", idNumber)
+      .maybeSingle();
+
+    if (existingMember) {
+      setFormData({
+        name: existingMember.name,
+        email: existingMember.email || "",
+        phone: existingMember.phone || "",
+        id_number: existingMember.id_number || "",
+        position_id: existingMember.position_id || "",
+      });
+      toast.success("Member found! Review and submit to check-in.");
+    } else {
+      toast.info("New member. Please complete the registration form.");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,91 +146,106 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
   };
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
-        <CardTitle className="flex items-center gap-2">
-          <UserPlus className="h-5 w-5" />
-          Register Member
-        </CardTitle>
-        <CardDescription>Add or check-in an existing member</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="member-id">ID Number *</Label>
-            <Input
-              id="member-id"
-              value={formData.id_number}
-              onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
-              placeholder="Enter ID number"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="member-name">Full Name *</Label>
-            <Input
-              id="member-name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter full name"
-              required
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+    <>
+      <Card className="shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5" />
+            Register Member
+          </CardTitle>
+          <CardDescription>Add or check-in an existing member</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="member-email">Email</Label>
-              <Input
-                id="member-email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="email@example.com"
-              />
+              <Label htmlFor="member-id">ID Number *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="member-id"
+                  value={formData.id_number}
+                  onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                  placeholder="Enter or scan ID number"
+                  required
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setScannerOpen(true)}
+                >
+                  <QrCode className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="member-phone">Phone</Label>
+              <Label htmlFor="member-name">Full Name *</Label>
               <Input
-                id="member-phone"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="+1234567890"
+                id="member-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter full name"
+                required
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="member-position">Position</Label>
-            <Select
-              value={formData.position_id}
-              onValueChange={(value) => setFormData({ ...formData, position_id: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select position" />
-              </SelectTrigger>
-              <SelectContent>
-                {positions.map((position) => (
-                  <SelectItem key={position.id} value={position.id}>
-                    {position.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="member-email">Email</Label>
+                <Input
+                  id="member-email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  placeholder="email@example.com"
+                />
+              </div>
 
-          <div className="flex gap-2">
-            <Button type="submit" className="flex-1" disabled={loading}>
+              <div className="space-y-2">
+                <Label htmlFor="member-phone">Phone</Label>
+                <Input
+                  id="member-phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  placeholder="+1234567890"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="member-position">Position</Label>
+              <Select
+                value={formData.position_id}
+                onValueChange={(value) => setFormData({ ...formData, position_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select position" />
+                </SelectTrigger>
+                <SelectContent>
+                  {positions.map((position) => (
+                    <SelectItem key={position.id} value={position.id}>
+                      {position.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
               <UserPlus className="mr-2 h-4 w-4" />
               {loading ? "Registering..." : "Register Member"}
             </Button>
-            <Button type="button" variant="outline" disabled>
-              <QrCode className="h-4 w-4" />
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+
+      <QRScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleQRScan}
+        title="Scan Member ID"
+      />
+    </>
   );
 };

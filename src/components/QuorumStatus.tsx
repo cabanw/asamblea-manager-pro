@@ -17,7 +17,9 @@ export const QuorumStatus = ({
   quorumAchieved,
 }: QuorumStatusProps) => {
   const percentage = totalMembers > 0 ? (presentMembers / totalMembers) * 100 : 0;
-  const membersNeeded = Math.max(0, Math.ceil((quorumRequired / 100) * totalMembers) - presentMembers);
+  // Quorum requires 2/3 of active members
+  const membersNeededForQuorum = Math.ceil((2 / 3) * totalMembers);
+  const membersNeeded = Math.max(0, membersNeededForQuorum - presentMembers);
 
   return (
     <Card className={cn(
@@ -31,7 +33,7 @@ export const QuorumStatus = ({
           <div>
             <h2 className="text-2xl font-bold">Quorum Status</h2>
             <p className="text-muted-foreground">
-              {quorumRequired}% attendance required ({Math.ceil((quorumRequired / 100) * totalMembers)} members)
+              2/3 attendance required ({Math.ceil((2 / 3) * totalMembers)} of {totalMembers} members)
             </p>
           </div>
           <div className={cn(
@@ -68,7 +70,7 @@ export const QuorumStatus = ({
           />
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>0%</span>
-            <span className="font-medium">Required: {quorumRequired}%</span>
+            <span className="font-medium">Required: 2/3 (66.67%)</span>
             <span>100%</span>
           </div>
         </div>

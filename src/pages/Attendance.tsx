@@ -55,25 +55,27 @@ const Attendance = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult, sessionResult] = await Promise.all([
+    const [membersResult, attendanceResult] = await Promise.all([
       supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
-      supabase.from('assembly_sessions').select('quorum_required').eq('id', sessId).single(),
     ]);
 
     const totalMembers = membersResult.count || 0;
     const attendance = attendanceResult.data || [];
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    const quorumRequired = sessionResult.data?.quorum_required || 50;
-    const quorumPercentage = totalMembers > 0 ? (presentMembers / totalMembers) * 100 : 0;
+    
+    // Quorum is 2/3 (66.67%) of active members
+    const quorumRequired = 66.67;
+    const membersNeededForQuorum = Math.ceil((2 / 3) * totalMembers);
+    const quorumAchieved = presentMembers >= membersNeededForQuorum;
 
     setStats({
       totalMembers,
       presentMembers,
       presentGuests,
       quorumRequired,
-      quorumAchieved: quorumPercentage >= quorumRequired,
+      quorumAchieved,
     });
   };
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { z } from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +9,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UserPlus, QrCode } from "lucide-react";
 import { QRScanner } from "./QRScanner";
+
+// Validation schemas
+const memberFormSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  email: z.string().trim().max(255, "Email must be less than 255 characters").email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().trim().max(20, "Phone must be less than 20 characters").optional().or(z.literal("")),
+  id_number: z.string().trim().min(1, "ID number is required").max(50, "ID must be less than 50 characters"),
+  position_id: z.string().uuid("Invalid position").optional().or(z.literal("")),
+});
+
+const qrDataSchema = z.object({
+  id_number: z.string().max(50).optional(),
+  name: z.string().max(100).optional(),
+  email: z.string().email().max(255).optional(),
+  phone: z.string().max(20).optional(),
+}).passthrough();
 
 interface RegisterMemberProps {
   sessionId: string | undefined;
@@ -36,26 +53,33 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
   };
 
   const handleQRScan = async (scannedData: string) => {
-    // Try to parse the scanned data - could be just an ID number or JSON
-    let idNumber = scannedData;
+    // Limit raw scanned data length to prevent DoS
+    const sanitizedData = scannedData.slice(0, 1000);
+    let idNumber = sanitizedData;
     
     try {
-      const parsed = JSON.parse(scannedData);
-      if (parsed.id_number) idNumber = parsed.id_number;
-      if (parsed.name) setFormData(prev => ({ ...prev, name: parsed.name }));
-      if (parsed.email) setFormData(prev => ({ ...prev, email: parsed.email }));
-      if (parsed.phone) setFormData(prev => ({ ...prev, phone: parsed.phone }));
+      const rawParsed = JSON.parse(sanitizedData);
+      // Validate parsed QR data
+      const parsed = qrDataSchema.safeParse(rawParsed);
+      
+      if (parsed.success) {
+        if (parsed.data.id_number) idNumber = parsed.data.id_number;
+        if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
+        if (parsed.data.email) setFormData(prev => ({ ...prev, email: parsed.data.email! }));
+        if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
+      }
     } catch {
-      // Not JSON, treat as plain ID number
+      // Not JSON, treat as plain ID number - limit length
+      idNumber = sanitizedData.slice(0, 50);
     }
 
-    setFormData(prev => ({ ...prev, id_number: idNumber }));
+    setFormData(prev => ({ ...prev, id_number: idNumber.slice(0, 50) }));
 
     // Try to find existing member
     const { data: existingMember } = await supabase
       .from("members")
       .select("*")
-      .eq("id_number", idNumber)
+      .eq("id_number", idNumber.slice(0, 50))
       .maybeSingle();
 
     if (existingMember) {
@@ -79,6 +103,15 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
       return;
     }
 
+    // Validate form data
+    const validationResult = memberFormSchema.safeParse(formData);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      toast.error(firstError.message);
+      return;
+    }
+
+    const validatedData = validationResult.data;
     setLoading(true);
 
     try {
@@ -86,21 +119,21 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
       const { data: existingMember } = await supabase
         .from("members")
         .select("id")
-        .eq("id_number", formData.id_number)
+        .eq("id_number", validatedData.id_number)
         .maybeSingle();
 
       let memberId = existingMember?.id;
 
       if (!existingMember) {
-        // Create new member
+        // Create new member with validated data
         const { data: newMember, error: memberError } = await supabase
           .from("members")
           .insert({
-            name: formData.name,
-            email: formData.email || null,
-            phone: formData.phone || null,
-            id_number: formData.id_number,
-            position_id: formData.position_id || null,
+            name: validatedData.name,
+            email: validatedData.email || null,
+            phone: validatedData.phone || null,
+            id_number: validatedData.id_number,
+            position_id: validatedData.position_id || null,
           })
           .select()
           .single();
@@ -163,9 +196,10 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
                 <Input
                   id="member-id"
                   value={formData.id_number}
-                  onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, id_number: e.target.value.slice(0, 50) })}
                   placeholder="Enter or scan ID number"
                   required
+                  maxLength={50}
                   className="flex-1"
                 />
                 <Button
@@ -184,9 +218,10 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
               <Input
                 id="member-name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value.slice(0, 100) })}
                 placeholder="Enter full name"
                 required
+                maxLength={100}
               />
             </div>
 
@@ -197,8 +232,9 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
                   id="member-email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value.slice(0, 255) })}
                   placeholder="email@example.com"
+                  maxLength={255}
                 />
               </div>
 
@@ -207,8 +243,9 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
                 <Input
                   id="member-phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.slice(0, 20) })}
                   placeholder="+1234567890"
+                  maxLength={20}
                 />
               </div>
             </div>

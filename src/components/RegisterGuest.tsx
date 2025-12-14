@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { z } from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, QrCode } from "lucide-react";
 import { QRScanner } from "./QRScanner";
+
+// Validation schemas
+const guestFormSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  email: z.string().trim().max(255, "Email must be less than 255 characters").email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().trim().max(20, "Phone must be less than 20 characters").optional().or(z.literal("")),
+  id_number: z.string().trim().max(50, "ID must be less than 50 characters").optional().or(z.literal("")),
+  organization: z.string().trim().max(100, "Organization must be less than 100 characters").optional().or(z.literal("")),
+});
+
+const qrDataSchema = z.object({
+  id_number: z.string().max(50).optional(),
+  name: z.string().max(100).optional(),
+  email: z.string().email().max(255).optional(),
+  phone: z.string().max(20).optional(),
+  organization: z.string().max(100).optional(),
+}).passthrough();
 
 interface RegisterGuestProps {
   sessionId: string | undefined;
@@ -25,21 +43,28 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const handleQRScan = (scannedData: string) => {
-    // Try to parse the scanned data - could be just an ID number or JSON
-    let idNumber = scannedData;
+    // Limit raw scanned data length to prevent DoS
+    const sanitizedData = scannedData.slice(0, 1000);
+    let idNumber = sanitizedData;
     
     try {
-      const parsed = JSON.parse(scannedData);
-      if (parsed.id_number) idNumber = parsed.id_number;
-      if (parsed.name) setFormData(prev => ({ ...prev, name: parsed.name }));
-      if (parsed.email) setFormData(prev => ({ ...prev, email: parsed.email }));
-      if (parsed.phone) setFormData(prev => ({ ...prev, phone: parsed.phone }));
-      if (parsed.organization) setFormData(prev => ({ ...prev, organization: parsed.organization }));
+      const rawParsed = JSON.parse(sanitizedData);
+      // Validate parsed QR data
+      const parsed = qrDataSchema.safeParse(rawParsed);
+      
+      if (parsed.success) {
+        if (parsed.data.id_number) idNumber = parsed.data.id_number;
+        if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
+        if (parsed.data.email) setFormData(prev => ({ ...prev, email: parsed.data.email! }));
+        if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
+        if (parsed.data.organization) setFormData(prev => ({ ...prev, organization: parsed.data.organization! }));
+      }
     } catch {
-      // Not JSON, treat as plain ID number
+      // Not JSON, treat as plain ID number - limit length
+      idNumber = sanitizedData.slice(0, 50);
     }
 
-    setFormData(prev => ({ ...prev, id_number: idNumber }));
+    setFormData(prev => ({ ...prev, id_number: idNumber.slice(0, 50) }));
     toast.info("ID scanned. Please complete the guest information.");
   };
 
@@ -50,18 +75,27 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
       return;
     }
 
+    // Validate form data
+    const validationResult = guestFormSchema.safeParse(formData);
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      toast.error(firstError.message);
+      return;
+    }
+
+    const validatedData = validationResult.data;
     setLoading(true);
 
     try {
-      // Create guest
+      // Create guest with validated data
       const { data: guest, error: guestError } = await supabase
         .from("guests")
         .insert({
-          name: formData.name,
-          email: formData.email || null,
-          phone: formData.phone || null,
-          id_number: formData.id_number || null,
-          organization: formData.organization || null,
+          name: validatedData.name,
+          email: validatedData.email || null,
+          phone: validatedData.phone || null,
+          id_number: validatedData.id_number || null,
+          organization: validatedData.organization || null,
         })
         .select()
         .single();
@@ -107,9 +141,10 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
               <Input
                 id="guest-name"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value.slice(0, 100) })}
                 placeholder="Enter full name"
                 required
+                maxLength={100}
               />
             </div>
 
@@ -118,8 +153,9 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
               <Input
                 id="guest-organization"
                 value={formData.organization}
-                onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, organization: e.target.value.slice(0, 100) })}
                 placeholder="Enter organization"
+                maxLength={100}
               />
             </div>
 
@@ -129,8 +165,9 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
                 <Input
                   id="guest-id"
                   value={formData.id_number}
-                  onChange={(e) => setFormData({ ...formData, id_number: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, id_number: e.target.value.slice(0, 50) })}
                   placeholder="Enter or scan ID number"
+                  maxLength={50}
                   className="flex-1"
                 />
                 <Button
@@ -151,8 +188,9 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
                   id="guest-email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value.slice(0, 255) })}
                   placeholder="email@example.com"
+                  maxLength={255}
                 />
               </div>
 
@@ -161,8 +199,9 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
                 <Input
                   id="guest-phone"
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.slice(0, 20) })}
                   placeholder="+1234567890"
+                  maxLength={20}
                 />
               </div>
             </div>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AttendanceManager } from '@/components/AttendanceManager';
@@ -5,14 +6,25 @@ import { QuorumStatus } from '@/components/QuorumStatus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, UserPlus } from 'lucide-react';
 
+type AttendanceRow = {
+  id: string;
+  session_id: string;
+  attendee_type: 'member' | 'guest';
+  is_present: boolean;
+};
+
+const QUORUM_FRACTION = 2 / 3;
+
 const Attendance = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [stats, setStats] = useState({
-    totalMembers: 0,
+    totalMembers: 27,
     presentMembers: 0,
     presentGuests: 0,
-    quorumRequired: 50,
+    quorumRequired: QUORUM_FRACTION * 100, // ~66.6667
     quorumAchieved: false,
+    // optional: membersNeededForQuorum to show in UI
+    membersNeededForQuorum: 0,
   });
 
   useEffect(() => {
@@ -23,7 +35,7 @@ const Attendance = () => {
     if (!sessionId) return;
 
     const channel = supabase
-      .channel('attendance-changes')
+      .channel(`attendance-changes-${sessionId}`)
       .on(
         'postgres_changes',
         {
@@ -42,11 +54,16 @@ const Attendance = () => {
   }, [sessionId]);
 
   const loadActiveSession = async () => {
-    const { data: existingSession } = await supabase
+    const { data: existingSession, error } = await supabase
       .from('assembly_sessions')
       .select('*')
       .eq('status', 'active')
       .maybeSingle();
+
+    if (error) {
+      console.error('Error loading active session:', error);
+      return;
+    }
 
     if (existingSession) {
       setSessionId(existingSession.id);
@@ -55,20 +72,27 @@ const Attendance = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult] = await Promise.all([
-      supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
+    const [{ count: totalMembers = 0, error: membersError }, attendanceResult] = await Promise.all([
+      supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
     ]);
 
-    const totalMembers = membersResult.count || 0;
-    const attendance = attendanceResult.data || [];
+    if (membersError) {
+      console.error('Error counting members:', membersError);
+      return;
+    }
+    if (attendanceResult.error) {
+      console.error('Error loading attendance:', attendanceResult.error);
+      return;
+    }
+
+    const attendance = (attendanceResult.data || []) as AttendanceRow[];
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    
-    // Quorum is 2/3 (66.67%) of active members
-    const quorumRequired = 66.67;
-    const membersNeededForQuorum = Math.ceil((2 / 3) * totalMembers);
-    const quorumAchieved = presentMembers >= membersNeededForQuorum;
+
+    const quorumRequired = QUORUM_FRACTION * 100; // ~66.6667%
+    const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * totalMembers);
+    const quorumAchieved = totalMembers > 0 && presentMembers >= membersNeededForQuorum;
 
     setStats({
       totalMembers,
@@ -76,6 +100,7 @@ const Attendance = () => {
       presentGuests,
       quorumRequired,
       quorumAchieved,
+      // membersNeededForQuorum, // uncomment if you want to pass to QuorumStatus
     });
   };
 
@@ -87,8 +112,9 @@ const Attendance = () => {
           totalMembers={stats.totalMembers}
           quorumRequired={stats.quorumRequired}
           quorumAchieved={stats.quorumAchieved}
+          // membersNeededForQuorum={stats.membersNeededForQuorum} // if supported
         />
-        
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -116,7 +142,12 @@ const Attendance = () => {
         </Card>
       </div>
 
-      <AttendanceManager sessionId={sessionId} onUpdate={() => sessionId && loadStats(sessionId)} />
+      <AttendanceManager
+        sessionId={sessionId}
+        onUpdate={() => {
+          if (sessionId) loadStats(sessionId);
+        }}
+      />
     </div>
   );
 };

@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Play, Square } from 'lucide-react';
+import { Plus, Play, Check } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Session {
@@ -62,14 +62,18 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
     }
 
     // End any active sessions first
-    const { error: endSessionError } = await supabase
+    const { data: activeSessions, error: findError } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'completed', end_time: new Date().toISOString() })
+      .select('*')
       .eq('status', 'active');
 
-    if (endSessionError) {
-      toast.error(`Failed to end previous session: ${endSessionError.message}`);
+    if (findError) {
+      toast.error(`Failed to find active sessions: ${findError.message}`);
       return;
+    }
+
+    for (const session of activeSessions) {
+      await handleEndSession(session, false); // End each active session without a toast message
     }
 
     const { data, error } = await supabase
@@ -96,28 +100,58 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
     onSessionChange(data.id);
   };
 
-  const handleEndSession = async (sessionId: string) => {
+  const handleEndSession = async (session: Session, showToast = true) => {
+    if (!session.start_time) {
+        toast.error('Cannot end a session that has not been started.');
+        return;
+    }
+
+    const now = new Date();
+    const startTime = new Date(session.start_time);
+    
+    const isSameDay = now.getFullYear() === startTime.getFullYear() &&
+                    now.getMonth() === startTime.getMonth() &&
+                    now.getDate() === startTime.getDate();
+
+    let endTime;
+    if (isSameDay) {
+        endTime = now.toISOString();
+    } else {
+        const endOfDay = new Date(startTime);
+        endOfDay.setHours(23, 59, 59, 999);
+        endTime = endOfDay.toISOString();
+    }
+
     const { error } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'completed', end_time: new Date().toISOString() })
-      .eq('id', sessionId);
+      .update({ status: 'completed', end_time: endTime })
+      .eq('id', session.id);
 
     if (error) {
-      toast.error(`Error ending session: ${error.message}`);
+      if(showToast) toast.error(`Error ending session: ${error.message}`);
       return;
     }
 
-    toast.success('Session ended');
+    if(showToast) toast.success('Session ended');
     loadSessions();
     onSessionChange('');
   };
 
   const handleActivateSession = async (sessionId: string) => {
     // End any active sessions first
-    await supabase
+    const { data: activeSessions, error: findError } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'completed', end_time: new Date().toISOString() })
+      .select('*')
       .eq('status', 'active');
+
+    if (findError) {
+      toast.error(`Failed to find active sessions: ${findError.message}`);
+      return;
+    }
+
+    for (const session of activeSessions) {
+      await handleEndSession(session, false); // End each active session without a toast message
+    }
 
     const { error } = await supabase
       .from('assembly_sessions')
@@ -219,10 +253,10 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleEndSession(session.id)}
+                      onClick={() => handleEndSession(session)}
                       className="gap-1"
                     >
-                      <Square className="h-3 w-3" />
+                      <Check className="h-3 w-3" />
                       Finalize
                     </Button>
                   ) : (

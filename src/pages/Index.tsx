@@ -15,7 +15,7 @@ const Index = () => {
     totalMembers: 0,
     presentMembers: 0,
     presentGuests: 0,
-    quorumRequired: 50,
+    quorumRequired: (2/3) * 100,
     quorumAchieved: false,
   });
 
@@ -37,26 +37,26 @@ const Index = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult, sessionResult] = await Promise.all([
+    const [membersResult, attendanceResult] = await Promise.all([
       supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
-      supabase.from('assembly_sessions').select('quorum_required').eq('id', sessId).single(),
     ]);
 
     const totalMembers = membersResult.count || 0;
     const attendance = attendanceResult.data || [];
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    const quorumRequired = sessionResult.data?.quorum_required || 50;
-    const quorumPercentage = totalMembers > 0 ? (presentMembers / totalMembers) * 100 : 0;
+    
+    const quorumRequiredFraction = 2 / 3;
+    const quorumAchieved = totalMembers > 0 && (presentMembers / totalMembers) >= quorumRequiredFraction;
 
-    setStats({
+    setStats(prevStats => ({
+      ...prevStats,
       totalMembers,
       presentMembers,
       presentGuests,
-      quorumRequired,
-      quorumAchieved: quorumPercentage >= quorumRequired,
-    });
+      quorumAchieved,
+    }));
   };
 
   if (authLoading) {

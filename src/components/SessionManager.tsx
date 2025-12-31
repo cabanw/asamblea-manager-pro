@@ -9,13 +9,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Play, Check, Trash2, X } from 'lucide-react';
-import { format, startOfDay } from 'date-fns';
+import { format, startOfDay, isToday as isTodayFns } from 'date-fns';
 
 interface Session {
   id: string;
   name: string;
   date: string;
-  status: 'active' | 'completed' | 'cancelled' | 'scheduled';
+  status: 'active' | 'closed';
   quorum_required: number;
   start_time: string | null;
   end_time: string | null;
@@ -51,8 +51,19 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       return;
     }
 
-    setSessions(data as Session[] || []);
+    setSessions((data as Session[]) || []);
     setLoading(false);
+  };
+
+  const getSessionTimestamps = (sessionDateStr: string) => {
+    const sessionDate = startOfDay(new Date(sessionDateStr));
+    const now = new Date();
+    const isToday = isTodayFns(sessionDate);
+
+    return {
+      start_time: isToday ? now.toISOString() : sessionDate.toISOString(),
+      end_time: isToday ? now.toISOString() : new Date(sessionDate.setHours(23, 59, 59, 999)).toISOString(),
+    };
   };
 
   const handleCreateSession = async () => {
@@ -72,12 +83,10 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
     }
 
     for (const session of activeSessions) {
-      await handleEndSession(session, false);
+      await handleEndSession(session as Session, false);
     }
-    
-    const sessionDate = startOfDay(new Date(newSession.date));
-    const now = new Date();
-    const isToday = startOfDay(now).getTime() === sessionDate.getTime();
+
+    const { start_time } = getSessionTimestamps(newSession.date);
 
     const { data, error } = await supabase
       .from('assembly_sessions')
@@ -86,7 +95,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
         date: newSession.date,
         quorum_required: newSession.quorum_required,
         status: 'active',
-        start_time: isToday ? now.toISOString() : sessionDate.toISOString(),
+        start_time,
       })
       .select()
       .single();
@@ -104,22 +113,10 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
   };
 
   const handleEndSession = async (session: Session, showToast = true) => {
-    if (!session.start_time) {
-      toast.error('Cannot end a session that has not been started.');
-      return;
-    }
-
-    const now = new Date();
-    const startTime = new Date(session.start_time);
-    const isSameDay = now.getFullYear() === startTime.getFullYear() &&
-                    now.getMonth() === startTime.getMonth() &&
-                    now.getDate() === startTime.getDate();
-
-    const endTime = isSameDay ? now.toISOString() : new Date(startTime.setHours(23, 59, 59, 999)).toISOString();
-
+    const { end_time } = getSessionTimestamps(session.date);
     const { error } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'completed', end_time: endTime })
+      .update({ status: 'closed', end_time })
       .eq('id', session.id);
 
     if (error) {
@@ -132,7 +129,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
     onSessionChange('');
   };
 
-  const handleActivateSession = async (sessionId: string) => {
+  const handleActivateSession = async (sessionId: string, sessionDate: string) => {
     const { data: activeSessions, error: findError } = await supabase
       .from('assembly_sessions')
       .select('*')
@@ -147,9 +144,11 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       await handleEndSession(session as Session, false);
     }
 
+    const { start_time } = getSessionTimestamps(sessionDate);
+
     const { error } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'active', start_time: new Date().toISOString(), end_time: null })
+      .update({ status: 'active', start_time, end_time: null })
       .eq('id', sessionId);
 
     if (error) {
@@ -178,9 +177,10 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
   };
 
   const handleCancelSession = async (session: Session) => {
+    const { end_time } = getSessionTimestamps(session.date);
     const { error } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'cancelled', end_time: new Date().toISOString() })
+      .update({ status: 'closed', end_time })
       .eq('id', session.id);
 
     if (error) {
@@ -194,7 +194,6 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       onSessionChange('');
     }
   };
-  
 
   if (loading) {
     return <div className="flex justify-center p-8">Loading...</div>;
@@ -271,11 +270,15 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                 <TableCell className="font-medium">{session.name}</TableCell>
                 <TableCell>{format(new Date(session.date), 'dd/MM/yyyy')}</TableCell>
                 <TableCell>
-                  <Badge variant={
-                    session.status === 'active' ? 'default' :
-                    session.status === 'cancelled' ? 'destructive' :
-                    'secondary'
-                  }>
+                  <Badge
+                    variant={
+                      session.status === 'active'
+                        ? 'default'
+                        : session.status === 'closed'
+                        ? 'destructive'
+                        : 'secondary'
+                    }
+                  >
                     {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                   </Badge>
                 </TableCell>
@@ -307,9 +310,9 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleActivateSession(session.id)}
+                        onClick={() => handleActivateSession(session.id, session.date)}
                         className="gap-1"
-                        disabled={session.status === 'cancelled'}
+                        disabled={session.status === 'closed'}
                       >
                         <Play className="h-3 w-3" />
                         Activate

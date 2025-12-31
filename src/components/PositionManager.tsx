@@ -1,331 +1,171 @@
 import { useState, useEffect } from "react";
+import { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Settings, Plus, Pencil, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import type { Database } from "@/integrations/supabase/types";
+import { Plus, Edit, Trash2 } from "lucide-react";
 
 type PositionType = Database["public"]["Enums"]["position_type"];
 type Position = Database["public"]["Tables"]["positions"]["Row"];
 
 // Valid database enum values
 const POSITION_TYPES: PositionType[] = [
-  "president",
-  "vice_president",
-  "secretary",
-  "treasurer",
-  "board_member",
+  "MinistroOrdenado",
+  "MinistroLicenciado",
+  "MinistroCertificado",
+  "Delegado",
   "member",
 ];
 
 // Display labels
 const POSITION_TYPE_LABELS: Record<PositionType, string> = {
-  president: "Presidente",
-  vice_president: "Vice Presidente",
-  secretary: "Secretario",
-  treasurer: "Tesorero",
-  board_member: "Miembro de Junta",
-  member: "Miembro",
+  MinistroOrdenado: "Ordained Minister",
+  MinistroLicenciado: "Licensed Minister",
+  MinistroCertificado: "Certified Minister",
+  Delegado: "Delegate",
+  member: "Member",
 };
 
 export const PositionManager = () => {
-  const defaultForm = {
-    name: "",
-    type: "member" as PositionType,
-    quorum_weight: 1,
-  };
-
   const [positions, setPositions] = useState<Position[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPosition, setEditingPosition] = useState<Position | null>(null);
-  const [formData, setFormData] = useState(defaultForm);
+  const [formData, setFormData] = useState({ name: "", type: '' as PositionType });
 
   useEffect(() => {
-    loadPositions();
+    fetchPositions();
   }, []);
 
-  const loadPositions = async () => {
-    const { data, error } = await supabase
-      .from("positions")
-      .select("*")
-      .order("type", { ascending: true });
-
+  const fetchPositions = async () => {
+    const { data, error } = await supabase.from("positions").select("*");
     if (error) {
-      toast.error("Failed to load positions");
-      return;
-    }
-
-    setPositions(data || []);
-  };
-
-  const resetForm = () => setFormData(defaultForm);
-
-  const handleAdd = async () => {
-    if (!formData.name.trim()) {
-      toast.error("Position name is required");
-      return;
-    }
-
-    setLoading(true);
-    const { error } = await supabase.from("positions").insert({
-      name: formData.name,
-      type: formData.type,
-      quorum_weight: formData.quorum_weight,
-    });
-
-    if (error) {
-      toast.error("Failed to add position: " + error.message);
+      toast.error("Error fetching positions.");
     } else {
-      toast.success("Position added successfully");
-      await loadPositions();
-      setIsAddOpen(false);
-      resetForm();
+      setPositions(data);
     }
-
     setLoading(false);
   };
 
-  const handleEdit = async () => {
-    if (!editingPosition || !formData.name.trim()) {
-      toast.error("Position name is required");
+  const handleSave = async () => {
+    if (!formData.name || !formData.type) {
+      toast.error("Please fill in all fields.");
       return;
     }
 
-    setLoading(true);
     const { error } = await supabase
       .from("positions")
-      .update({
-        name: formData.name,
-        type: formData.type,
-        quorum_weight: formData.quorum_weight,
-      })
-      .eq("id", editingPosition.id);
+      .upsert({ ...editingPosition, ...formData });
 
     if (error) {
-      toast.error("Failed to update position: " + error.message);
+      toast.error(`Error saving position: ${error.message}`);
     } else {
-      toast.success("Position updated successfully");
-      await loadPositions();
-      setIsEditOpen(false);
-      setEditingPosition(null);
-      resetForm();
+      toast.success('Position saved successfully.');
+      fetchPositions();
+      setDialogOpen(false);
     }
-
-    setLoading(false);
   };
 
-  const handleDelete = async (position: Position) => {
-    if (!confirm(`Are you sure you want to delete "${position.name}"?`)) return;
-
-    setLoading(true);
-    const { error } = await supabase
-      .from("positions")
-      .delete()
-      .eq("id", position.id);
-
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("positions").delete().eq("id", id);
     if (error) {
-      toast.error("Failed to delete position: " + error.message);
+      toast.error(`Error deleting position: ${error.message}`);
     } else {
-      toast.success("Position deleted successfully");
-      await loadPositions();
+      toast.success("Position deleted successfully.");
+      fetchPositions();
     }
-
-    setLoading(false);
   };
-
-  const openEditDialog = (position: Position) => {
-    setEditingPosition(position);
-    setFormData({
-      name: position.name,
-      type: position.type,
-      quorum_weight: position.quorum_weight || 1,
-    });
-    setIsEditOpen(true);
-  };
-
-  const PositionForm = ({
-    onSubmit,
-    submitLabel,
-  }: {
-    onSubmit: () => void;
-    submitLabel: string;
-  }) => (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="name">Nombre de la Posición</Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          placeholder="Ej: Ministro Ordenado"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="type">Tipo de Posición</Label>
-        <Select
-          value={formData.type}
-          onValueChange={(value: PositionType) =>
-            setFormData({ ...formData, type: value })
-          }
-        >
-          <SelectTrigger className="bg-background">
-            <SelectValue placeholder="Seleccionar tipo" />
-          </SelectTrigger>
-          <SelectContent className="bg-background border z-50">
-            {POSITION_TYPES.map((type) => (
-              <SelectItem key={type} value={type}>
-                {POSITION_TYPE_LABELS[type]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="weight">Peso para Quorum</Label>
-        <Input
-          id="weight"
-          type="number"
-          min={1}
-          max={10}
-          value={formData.quorum_weight}
-          onChange={(e) =>
-            setFormData({
-              ...formData,
-              quorum_weight: parseInt(e.target.value) || 1,
-            })
-          }
-        />
-        <p className="text-xs text-muted-foreground">
-          Peso aplicado al calcular el quorum (default: 1)
-        </p>
-      </div>
-
-      <Button disabled={loading} onClick={onSubmit} className="w-full">
-        {loading ? "Guardando..." : submitLabel}
-      </Button>
-    </div>
-  );
 
   return (
-    <Card className="shadow-lg">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
-          Gestión de Posiciones
-        </CardTitle>
-
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" onClick={resetForm}>
-              <Plus className="h-4 w-4 mr-1" />
-              Agregar Posición
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Position Management</CardTitle>
+              <CardDescription>Manage member positions</CardDescription>
+            </div>
+            <Button onClick={() => {
+              setEditingPosition(null);
+              setFormData({ name: '', type: '' as PositionType });
+              setDialogOpen(true);
+            }}>
+              <Plus className="mr-2 h-4 w-4" /> Add Position
             </Button>
-          </DialogTrigger>
-
-          <DialogContent className="bg-background">
-            <DialogHeader>
-              <DialogTitle>Agregar Nueva Posición</DialogTitle>
-            </DialogHeader>
-
-            <PositionForm onSubmit={handleAdd} submitLabel="Agregar Posición" />
-          </DialogContent>
-        </Dialog>
-      </CardHeader>
-
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead className="text-center">Peso Quorum</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-
-          <TableBody>
-            {positions.map((position) => (
-              <TableRow key={position.id}>
-                <TableCell className="font-medium">{position.name}</TableCell>
-                <TableCell>{POSITION_TYPE_LABELS[position.type]}</TableCell>
-                <TableCell className="text-center">
-                  {position.quorum_weight}
-                </TableCell>
-
-                <TableCell className="text-right space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditDialog(position)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(position)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-
-            {positions.length === 0 && (
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center text-muted-foreground py-8"
-                >
-                  No hay posiciones. Agregue su primera posición.
-                </TableCell>
+                <TableHead>Name</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow><TableCell colSpan={3}>Loading...</TableCell></TableRow>
+              ) : (
+                positions.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>{POSITION_TYPE_LABELS[p.type]}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="icon" className="mr-2" onClick={() => {
+                        setEditingPosition(p);
+                        setFormData({ name: p.name, type: p.type });
+                        setDialogOpen(true);
+                      }}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(p.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-        {/* Edit Dialog */}
-        <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DialogContent className="bg-background">
-            <DialogHeader>
-              <DialogTitle>Editar Posición</DialogTitle>
-            </DialogHeader>
-
-            <PositionForm onSubmit={handleEdit} submitLabel="Guardar Cambios" />
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingPosition ? "Edit" : "Add"} Position</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Position Name</Label>
+              <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">Position Type</Label>
+              <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value as PositionType })}>
+                <SelectTrigger id="type">
+                  <SelectValue placeholder="Select a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {POSITION_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {POSITION_TYPE_LABELS[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSave} className="w-full">Save Position</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

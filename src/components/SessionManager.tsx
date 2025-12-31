@@ -62,10 +62,15 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
     }
 
     // End any active sessions first
-    await supabase
+    const { error: endSessionError } = await supabase
       .from('assembly_sessions')
       .update({ status: 'completed', end_time: new Date().toISOString() })
       .eq('status', 'active');
+
+    if (endSessionError) {
+      toast.error(`Failed to end previous session: ${endSessionError.message}`);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('assembly_sessions')
@@ -80,7 +85,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       .single();
 
     if (error) {
-      toast.error('Error creating session');
+      toast.error(`Error creating session: ${error.message}`);
       return;
     }
 
@@ -98,12 +103,13 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       .eq('id', sessionId);
 
     if (error) {
-      toast.error('Error ending session');
+      toast.error(`Error ending session: ${error.message}`);
       return;
     }
 
     toast.success('Session ended');
     loadSessions();
+    onSessionChange('');
   };
 
   const handleActivateSession = async (sessionId: string) => {
@@ -119,7 +125,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       .eq('id', sessionId);
 
     if (error) {
-      toast.error('Error activating session');
+      toast.error(`Error activating session: ${error.message}`);
       return;
     }
 
@@ -137,31 +143,31 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Gestión de Asambleas</CardTitle>
-            <CardDescription>Crear y administrar sesiones de asamblea</CardDescription>
+            <CardTitle>Assembly Management</CardTitle>
+            <CardDescription>Create and manage assembly sessions</CardDescription>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2">
                 <Plus className="h-4 w-4" />
-                Nueva Asamblea
+                New Assembly
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Crear Nueva Asamblea</DialogTitle>
+                <DialogTitle>Create New Assembly</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Nombre de la Asamblea</Label>
+                  <Label>Assembly Name</Label>
                   <Input
                     value={newSession.name}
                     onChange={(e) => setNewSession({ ...newSession, name: e.target.value })}
-                    placeholder="Asamblea General Ordinaria"
+                    placeholder="General Assembly"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Fecha</Label>
+                  <Label>Date</Label>
                   <Input
                     type="date"
                     value={newSession.date}
@@ -169,7 +175,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Quorum Requerido (%)</Label>
+                  <Label>Quorum Required (%)</Label>
                   <Input
                     type="number"
                     min="1"
@@ -179,7 +185,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                   />
                 </div>
                 <Button onClick={handleCreateSession} className="w-full">
-                  Crear Asamblea
+                  Create Assembly
                 </Button>
               </div>
             </DialogContent>
@@ -190,11 +196,11 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Estado</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Quorum</TableHead>
-              <TableHead>Acciones</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -204,7 +210,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                 <TableCell>{format(new Date(session.date), 'dd/MM/yyyy')}</TableCell>
                 <TableCell>
                   <Badge variant={session.status === 'active' ? 'default' : 'secondary'}>
-                    {session.status === 'active' ? 'Activa' : 'Completada'}
+                    {session.status === 'active' ? 'Active' : 'Completed'}
                   </Badge>
                 </TableCell>
                 <TableCell>{session.quorum_required}%</TableCell>
@@ -217,7 +223,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                       className="gap-1"
                     >
                       <Square className="h-3 w-3" />
-                      Finalizar
+                      Finalize
                     </Button>
                   ) : (
                     <Button
@@ -227,7 +233,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                       className="gap-1"
                     >
                       <Play className="h-3 w-3" />
-                      Activar
+                      Activate
                     </Button>
                   )}
                 </TableCell>

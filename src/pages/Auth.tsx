@@ -13,9 +13,9 @@ import { z } from 'zod';
 import FiadahLogo from '@/assets/FIADAH_Logo.jpg';
 
 const authSchema = z.object({
-  email: z.string().email('Correo electrónico inválido'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
-  fullName: z.string().min(2, 'El nombre debe tener al menos 2 caracteres').optional(),
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  fullName: z.string().min(2, 'Full name must be at least 2 characters').optional(),
 });
 
 const Auth = () => {
@@ -45,12 +45,12 @@ const Auth = () => {
       
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error('Correo o contraseña inválidos');
+          toast.error('Invalid email or password');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success('¡Bienvenido!');
+        toast.success('Welcome!');
         navigate('/');
       }
     } catch (err) {
@@ -72,12 +72,12 @@ const Auth = () => {
       
       if (error) {
         if (error.message.includes('already registered')) {
-          toast.error('Este correo ya está registrado. Por favor inicia sesión.');
+          toast.error('This email is already registered. Please sign in.');
         } else {
           toast.error(error.message);
         }
       } else {
-        toast.success('¡Cuenta creada exitosamente!');
+        toast.success('Account created successfully!');
         navigate('/');
       }
     } catch (err) {
@@ -94,7 +94,7 @@ const Auth = () => {
     setIsResetting(true);
 
     try {
-      const emailValidation = z.string().email('Correo electrónico inválido');
+      const emailValidation = z.string().email('Invalid email address');
       emailValidation.parse(resetEmail);
 
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
@@ -104,7 +104,7 @@ const Auth = () => {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success('Se ha enviado un enlace de recuperación a tu correo');
+        toast.success('A password reset link has been sent to your email.');
         setIsResetDialogOpen(false);
         setResetEmail('');
       }
@@ -132,14 +132,14 @@ const Auth = () => {
           <div className="flex justify-center mb-4">
             <img src={FiadahLogo} alt="FIADAH Logo" className="h-16 w-auto" />
           </div>
-          <CardTitle className="text-2xl">Sistema de Asamblea</CardTitle>
-          <CardDescription>Inicia sesión o crea una cuenta para continuar</CardDescription>
+          <CardTitle className="text-2xl">Assembly System</CardTitle>
+          <CardDescription>Sign in or create an account to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-              <TabsTrigger value="signup">Registrarse</TabsTrigger>
+              <TabsTrigger value="login">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             
             <TabsContent value="login">
@@ -149,14 +149,14 @@ const Auth = () => {
                   <Input
                     id="login-email"
                     type="email"
-                    placeholder="correo@ejemplo.com"
+                    placeholder="name@example.com"
                     value={loginData.email}
                     onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Contraseña</Label>
+                  <Label htmlFor="login-password">Password</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -167,21 +167,21 @@ const Auth = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                  {isSubmitting ? 'Signing in...' : 'Sign In'}
                 </Button>
                 
                 <div className="text-center">
                   <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
                     <DialogTrigger asChild>
                       <Button variant="link" className="text-sm text-muted-foreground">
-                        ¿Olvidaste tu contraseña?
+                        Forgot your password?
                       </Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Restablecer Contraseña</DialogTitle>
+                        <DialogTitle>Reset Password</DialogTitle>
                         <DialogDescription>
-                          Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+                          Enter your email address and we'll send you a link to reset your password.
                         </DialogDescription>
                       </DialogHeader>
                       <form onSubmit={handlePasswordReset} className="space-y-4">
@@ -190,14 +190,14 @@ const Auth = () => {
                           <Input
                             id="reset-email"
                             type="email"
-                            placeholder="correo@ejemplo.com"
+                            placeholder="name@example.com"
                             value={resetEmail}
                             onChange={(e) => setResetEmail(e.target.value)}
                             required
                           />
                         </div>
                         <Button type="submit" className="w-full" disabled={isResetting}>
-                          {isResetting ? 'Enviando...' : 'Enviar Enlace de Recuperación'}
+                          {isResetting ? 'Sending...' : 'Send Reset Link'}
                         </Button>
                       </form>
                     </DialogContent>
@@ -209,11 +209,11 @@ const Auth = () => {
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nombre Completo</Label>
+                  <Label htmlFor="signup-name">Full Name</Label>
                   <Input
                     id="signup-name"
                     type="text"
-                    placeholder="Juan Pérez"
+                    placeholder="John Doe"
                     value={signupData.fullName}
                     onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                     required
@@ -224,14 +224,14 @@ const Auth = () => {
                   <Input
                     id="signup-email"
                     type="email"
-                    placeholder="correo@ejemplo.com"
+                    placeholder="name@example.com"
                     value={signupData.email}
                     onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Contraseña</Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <Input
                     id="signup-password"
                     type="password"
@@ -242,7 +242,7 @@ const Auth = () => {
                   />
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? 'Creando cuenta...' : 'Crear Cuenta'}
+                  {isSubmitting ? 'Creating account...' : 'Create Account'}
                 </Button>
               </form>
             </TabsContent>

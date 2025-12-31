@@ -14,6 +14,9 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
     toast.info(`${format.toUpperCase()} report generation will be implemented with a backend service`);
   };
 
+  const membersNeededForQuorum = Math.ceil((2 / 3) * stats.totalMembers);
+  const membersNeeded = Math.max(0, membersNeededForQuorum - stats.presentMembers);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <Card className="shadow-lg">
@@ -51,7 +54,9 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
                 {stats.quorumAchieved ? "Achieved" : "Not Achieved"}
               </p>
               <p className="text-sm text-muted-foreground">
-                {((stats.presentMembers / stats.totalMembers) * 100 || 0).toFixed(1)}% of {stats.quorumRequired}% required
+                {stats.quorumAchieved
+                  ? `Quorum was achieved with ${stats.presentMembers} of ${membersNeededForQuorum} members present.`
+                  : `${membersNeeded} more member${membersNeeded !== 1 ? 's' : ''} needed for quorum (${membersNeededForQuorum} required).`}
               </p>
             </div>
           </div>

@@ -15,7 +15,7 @@ interface Session {
   id: string;
   name: string;
   date: string;
-  status: 'active' | 'completed' | 'canceled' | 'scheduled';
+  status: 'active' | 'completed' | 'cancelled' | 'scheduled';
   quorum_required: number;
   start_time: string | null;
   end_time: string | null;
@@ -180,7 +180,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
   const handleCancelSession = async (session: Session) => {
     const { error } = await supabase
       .from('assembly_sessions')
-      .update({ status: 'canceled', end_time: new Date().toISOString() })
+      .update({ status: 'cancelled', end_time: new Date().toISOString() })
       .eq('id', session.id);
 
     if (error) {
@@ -273,7 +273,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                 <TableCell>
                   <Badge variant={
                     session.status === 'active' ? 'default' :
-                    session.status === 'canceled' ? 'destructive' :
+                    session.status === 'cancelled' ? 'destructive' :
                     'secondary'
                   }>
                     {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
@@ -309,7 +309,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                         size="sm"
                         onClick={() => handleActivateSession(session.id)}
                         className="gap-1"
-                        disabled={session.status === 'canceled'}
+                        disabled={session.status === 'cancelled'}
                       >
                         <Play className="h-3 w-3" />
                         Activate

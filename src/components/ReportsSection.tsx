@@ -5,7 +5,15 @@ import { toast } from "sonner";
 
 interface ReportsSectionProps {
   sessionId: string | undefined;
-  stats: any;
+  stats: Stats;
+}
+
+interface Stats {
+  totalMembers: number;
+  presentMembers: number;
+  totalGuests: number;
+  presentGuests: number;
+  quorumAchieved: boolean;
 }
 
 export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {

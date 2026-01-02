@@ -31,8 +31,17 @@ interface RegisterMemberProps {
   onSuccess: () => void;
 }
 
+interface Position {
+    id: string;
+    name: string;
+}
+
+interface MemberError extends Error {
+    message: string;
+}
+
 export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) => {
-  const [positions, setPositions] = useState<any[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -171,8 +180,9 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
       toast.success("Member registered successfully!");
       setFormData({ name: "", email: "", phone: "", id_number: "", position_id: "" });
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register member");
+    } catch (error) {
+      const memberError = error as MemberError;
+      toast.error(memberError.message || "Failed to register member");
     } finally {
       setLoading(false);
     }

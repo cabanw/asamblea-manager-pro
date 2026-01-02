@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { LogOut, Settings, FileText, Users, ClipboardList, Home } from 'lucide-react';
 import FiadahLogo from '@/assets/FIADAH_Logo.jpg';

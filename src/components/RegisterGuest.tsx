@@ -31,6 +31,10 @@ interface RegisterGuestProps {
   onSuccess: () => void;
 }
 
+interface GuestError extends Error {
+    message: string;
+}
+
 export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
   const [formData, setFormData] = useState({
     name: "",
@@ -117,8 +121,9 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
       toast.success("Guest registered successfully!");
       setFormData({ name: "", email: "", phone: "", id_number: "", organization: "" });
       onSuccess();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register guest");
+    } catch (error) {
+        const guestError = error as GuestError;
+      toast.error(guestError.message || "Failed to register guest");
     } finally {
       setLoading(false);
     }

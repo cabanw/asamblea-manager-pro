@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Shield, User, Users, Plus, Trash2, Search } from 'lucide-react';
+import { Shield, User, Users, Plus, Trash2, Search, KeyRound } from 'lucide-react';
 
 type AppRole = 'user' | 'admin' | 'assembly_sergeant';
 
@@ -19,6 +19,10 @@ interface UserWithRole {
   email: string;
   full_name: string | null;
   roles: AppRole[];
+}
+
+interface UserError extends Error {
+    message: string;
 }
 
 const ROLE_LABELS: Record<AppRole, string> = {
@@ -41,6 +45,7 @@ export const UserManager = () => {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState<string | null>(null);
 
   // New user form state
   const [newEmail, setNewEmail] = useState('');
@@ -156,8 +161,9 @@ export const UserManager = () => {
       setNewFullName('');
       setNewRole('user');
       loadUsers();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al crear usuario');
+    } catch (error) {
+        const userError = error as UserError;
+      toast.error(userError.message || 'Error al crear usuario');
     } finally {
       setCreating(false);
     }
@@ -181,10 +187,26 @@ export const UserManager = () => {
 
       toast.success('Usuario eliminado correctamente');
       loadUsers();
-    } catch (error: any) {
-      toast.error(error.message || 'Error al eliminar usuario');
+    } catch (error) {
+        const userError = error as UserError;
+      toast.error(userError.message || 'Error al eliminar usuario');
     } finally {
       setDeleting(null);
+    }
+  };
+
+  const handleResetPassword = async (email: string) => {
+    setIsSendingPasswordReset(email);
+    try {
+      await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      toast.success(`Se ha enviado un correo para el cambio de contraseña a ${email}`);
+    } catch (error) {
+        const userError = error as UserError;
+      toast.error(userError.message || 'Error al enviar el correo de reseteo de contraseña.');
+    } finally {
+      setIsSendingPasswordReset(null);
     }
   };
 
@@ -289,7 +311,7 @@ export const UserManager = () => {
               <TableHead>Email</TableHead>
               <TableHead>Rol Actual</TableHead>
               <TableHead>Cambiar Rol</TableHead>
-              <TableHead className="w-[80px]">Acciones</TableHead>
+              <TableHead className="w-[120px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -323,36 +345,46 @@ export const UserManager = () => {
                   </Select>
                 </TableCell>
                 <TableCell>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:text-destructive"
-                        disabled={deleting === user.id}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta acción no se puede deshacer. Se eliminará permanentemente
-                          la cuenta de {user.email}.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDeleteUser(user.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleResetPassword(user.email)}
+                      disabled={isSendingPasswordReset === user.email}
+                    >
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          disabled={deleting === user.id}
                         >
-                          Eliminar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar usuario?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminará permanentemente
+                            la cuenta de {user.email}.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteUser(user.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

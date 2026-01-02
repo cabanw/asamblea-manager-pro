@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,23 +11,31 @@ interface QRScannerProps {
   title?: string;
 }
 
+interface QrError extends Error {
+    name: string;
+    message: string;
+}
+
 export const QRScanner = ({ open, onClose, onScan, title = "Scan QR Code" }: QRScannerProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (open && containerRef.current) {
-      startScanner();
+  const stopScanner = useCallback(async () => {
+    if (scannerRef.current) {
+      try {
+        await scannerRef.current.stop();
+        scannerRef.current.clear();
+      } catch (err) {
+        // Ignore stop errors
+      }
+      scannerRef.current = null;
     }
+    setIsScanning(false);
+  }, []);
 
-    return () => {
-      stopScanner();
-    };
-  }, [open]);
-
-  const startScanner = async () => {
+  const startScanner = useCallback(async () => {
     if (!containerRef.current) return;
 
     try {
@@ -52,30 +60,28 @@ export const QRScanner = ({ open, onClose, onScan, title = "Scan QR Code" }: QRS
           // Ignore scan failures (no QR detected)
         }
       );
-    } catch (err: any) {
+    } catch (err) {
+        const qrError = err as QrError;
       setIsScanning(false);
-      if (err.name === "NotAllowedError") {
+      if (qrError.name === "NotAllowedError") {
         setError("Camera permission denied. Please allow camera access.");
-      } else if (err.name === "NotFoundError") {
+      } else if (qrError.name === "NotFoundError") {
         setError("No camera found on this device.");
       } else {
-        setError(err.message || "Failed to start camera");
+        setError(qrError.message || "Failed to start camera");
       }
     }
-  };
+  }, [onClose, onScan, stopScanner]);
 
-  const stopScanner = async () => {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch (err) {
-        // Ignore stop errors
-      }
-      scannerRef.current = null;
+  useEffect(() => {
+    if (open && containerRef.current) {
+      startScanner();
     }
-    setIsScanning(false);
-  };
+
+    return () => {
+      stopScanner();
+    };
+  }, [open, startScanner, stopScanner]);
 
   const handleClose = () => {
     stopScanner();

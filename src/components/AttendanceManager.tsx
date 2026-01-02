@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,17 +12,29 @@ interface AttendanceManagerProps {
   onUpdate: () => void;
 }
 
+interface Attendee {
+  id: string;
+  attendee_type: 'member' | 'guest';
+  is_present: boolean;
+  check_in_time: string;
+  check_out_time: string | null;
+  members: {
+    name: string;
+    positions: {
+      name: string;
+    };
+  } | null;
+  guests: {
+    name: string;
+    organization: string;
+  } | null;
+}
+
 export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProps) => {
-  const [attendees, setAttendees] = useState<any[]>([]);
+  const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (sessionId) {
-      loadAttendees();
-    }
-  }, [sessionId]);
-
-  const loadAttendees = async () => {
+  const loadAttendees = useCallback(async () => {
     if (!sessionId) return;
 
     setLoading(true);
@@ -42,7 +54,13 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
       setAttendees(data || []);
     }
     setLoading(false);
-  };
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionId) {
+      loadAttendees();
+    }
+  }, [sessionId, loadAttendees]);
 
   const togglePresence = async (recordId: string, currentStatus: boolean) => {
     const { error } = await supabase
@@ -65,7 +83,7 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
   const members = attendees.filter((a) => a.attendee_type === "member");
   const guests = attendees.filter((a) => a.attendee_type === "guest");
 
-  const AttendeeCard = ({ attendee }: { attendee: any }) => {
+  const AttendeeCard = ({ attendee }: { attendee: Attendee }) => {
     const isGuest = attendee.attendee_type === "guest";
     const name = isGuest ? attendee.guests?.name : attendee.members?.name;
     const subtitle = isGuest

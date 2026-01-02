@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { QuorumStatus } from '@/components/QuorumStatus';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 import { Button } from '@/components/ui/button';
-import { Users, UserPlus, ClipboardList, LogIn } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { QuorumStatus } from '@/components/QuorumStatus';
+import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
+import { ClipboardList, LogIn, UserPlus, Users } from 'lucide-react';
+
+const QUORUM_THRESHOLD = 2 / 3;
 
 const Index = () => {
   const navigate = useNavigate();
@@ -15,7 +18,7 @@ const Index = () => {
     totalMembers: 0,
     presentMembers: 0,
     presentGuests: 0,
-    quorumRequired: (2/3) * 100,
+    quorumRequired: QUORUM_THRESHOLD * 100,
     quorumAchieved: false,
   });
 
@@ -47,8 +50,7 @@ const Index = () => {
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
     
-    const quorumRequiredFraction = 2 / 3;
-    const quorumAchieved = totalMembers > 0 && (presentMembers / totalMembers) >= quorumRequiredFraction;
+    const quorumAchieved = totalMembers > 0 && (presentMembers / totalMembers) >= QUORUM_THRESHOLD;
 
     setStats(prevStats => ({
       ...prevStats,

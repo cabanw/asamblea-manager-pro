@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { RegistrationLinkDialog } from '@/components/RegistrationLinkDialog';
 import { toast } from 'sonner';
-import { Plus, Play, Check, Trash2, X } from 'lucide-react';
-import { format, startOfDay, isToday as isTodayFns } from 'date-fns';
+import { Plus, Play, Check, Trash2, X, Share2 } from 'lucide-react';
+import { format, startOfDay, isToday as isTodayFns, addHours } from 'date-fns';
 
 interface Session {
   id: string;
@@ -30,6 +31,8 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [registrationDialogOpen, setRegistrationDialogOpen] = useState(false);
+  const [registrationLink, setRegistrationLink] = useState('');
   const [newSession, setNewSession] = useState({
     name: '',
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -53,6 +56,24 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
 
     setSessions((data as Session[]) || []);
     setLoading(false);
+  };
+  
+  const handleGenerateLink = async (assemblyId: string) => {
+    const expiresAt = addHours(new Date(), 24);
+    const { data, error } = await supabase
+      .from('assembly_registration_links')
+      .insert({ assembly_id: assemblyId, expires_at: expiresAt.toISOString() })
+      .select('token')
+      .single();
+
+    if (error || !data) {
+      toast.error('Failed to generate registration link');
+      return;
+    }
+
+    const link = `${window.location.origin}/register/${data.token}`;
+    setRegistrationLink(link);
+    setRegistrationDialogOpen(true);
   };
 
   const getSessionTimestamps = (sessionDateStr: string) => {
@@ -328,12 +349,26 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                       </Button>
                     </>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleGenerateLink(session.id)}
+                    className="gap-1"
+                  >
+                    <Share2 className="h-3 w-3" />
+                    Share
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+       <RegistrationLinkDialog
+        open={registrationDialogOpen}
+        onOpenChange={setRegistrationDialogOpen}
+        link={registrationLink}
+      />
     </Card>
   );
 };

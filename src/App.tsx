@@ -13,6 +13,8 @@ import Attendance from "./pages/Attendance";
 import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
 import NotFound from "./pages/NotFound";
+import PublicRegistration from './pages/PublicRegistration';
+import RegistrationSuccess from './pages/RegistrationSuccess';
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,8 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/register/:token" element={<PublicRegistration />} />
+            <Route path="/registration-success" element={<RegistrationSuccess />} />
             <Route
               path="/"
               element={

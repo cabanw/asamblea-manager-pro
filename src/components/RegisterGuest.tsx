@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, QrCode } from "lucide-react";
 import { QRScanner } from "./QRScanner";
+import { verifyQRData } from "@/lib/security";
 
 // Validation schemas
 const guestFormSchema = z.object({
@@ -46,16 +47,16 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
   const [loading, setLoading] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
 
-  const handleQRScan = (scannedData: string) => {
+  const handleQRScan = async (scannedData: string) => {
     // Limit raw scanned data length to prevent DoS
     const sanitizedData = scannedData.slice(0, 1000);
     let idNumber = sanitizedData;
     
-    try {
-      const rawParsed = JSON.parse(sanitizedData);
-      // Validate parsed QR data
-      const parsed = qrDataSchema.safeParse(rawParsed);
-      
+    // Check if the QR payload is cryptographically signed
+    const verifiedData = await verifyQRData(sanitizedData);
+    
+    if (verifiedData) {
+      const parsed = qrDataSchema.safeParse(verifiedData);
       if (parsed.success) {
         if (parsed.data.id_number) idNumber = parsed.data.id_number;
         if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
@@ -63,13 +64,28 @@ export const RegisterGuest = ({ sessionId, onSuccess }: RegisterGuestProps) => {
         if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
         if (parsed.data.organization) setFormData(prev => ({ ...prev, organization: parsed.data.organization! }));
       }
-    } catch {
-      // Not JSON, treat as plain ID number - limit length
-      idNumber = sanitizedData.slice(0, 50);
+      toast.success("Secure Pass scanned. Please complete guest info.");
+    } else {
+      // Fallback: Legacy or unscoped QRs
+      try {
+        const rawParsed = JSON.parse(sanitizedData);
+        const parsed = qrDataSchema.safeParse(rawParsed);
+        if (parsed.success) {
+          if (parsed.data.id_number) idNumber = parsed.data.id_number;
+          if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
+          if (parsed.data.email) setFormData(prev => ({ ...prev, email: parsed.data.email! }));
+          if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
+          if (parsed.data.organization) setFormData(prev => ({ ...prev, organization: parsed.data.organization! }));
+        }
+        toast.info("Unverified pass scanned.");
+      } catch {
+        // Plain ID fallback
+        idNumber = sanitizedData.slice(0, 50);
+        toast.info("ID barcode scanned.");
+      }
     }
 
     setFormData(prev => ({ ...prev, id_number: idNumber.slice(0, 50) }));
-    toast.info("ID scanned. Please complete the guest information.");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

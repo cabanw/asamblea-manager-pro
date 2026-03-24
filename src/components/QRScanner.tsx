@@ -21,6 +21,7 @@ export const QRScanner = ({ open, onClose, onScan, title = "Scan QR Code" }: QRS
   const [isScanning, setIsScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasScannedRef = useRef(false);
 
   const stopScanner = useCallback(async () => {
     if (scannerRef.current) {
@@ -37,6 +38,7 @@ export const QRScanner = ({ open, onClose, onScan, title = "Scan QR Code" }: QRS
 
   const startScanner = useCallback(async () => {
     if (!containerRef.current) return;
+    hasScannedRef.current = false;
 
     try {
       setError(null);
@@ -45,13 +47,30 @@ export const QRScanner = ({ open, onClose, onScan, title = "Scan QR Code" }: QRS
       const scanner = new Html5Qrcode("qr-reader");
       scannerRef.current = scanner;
 
+      let cameraIdOrConfig: any = { facingMode: "environment" };
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (cameras && cameras.length > 0) {
+          const backCamera = cameras.find(c => c.label.toLowerCase().includes('back') || c.label.toLowerCase().includes('environment'));
+          if (backCamera) {
+            cameraIdOrConfig = backCamera.id;
+          } else {
+             cameraIdOrConfig = cameras[cameras.length - 1].id;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not get cameras list, falling back to facingMode", err);
+      }
+
       await scanner.start(
-        { facingMode: "environment" },
+        cameraIdOrConfig,
         {
           fps: 10,
           qrbox: { width: 250, height: 250 },
         },
         (decodedText) => {
+          if (hasScannedRef.current) return;
+          hasScannedRef.current = true;
           onScan(decodedText);
           stopScanner();
           onClose();

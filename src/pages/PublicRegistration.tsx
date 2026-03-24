@@ -33,7 +33,7 @@ const PublicRegistration = () => {
       }
 
       toast({ title: 'Success', description: 'Your attendance has been registered.' });
-      navigate('/registration-success'); 
+      navigate('/registration-success', { state: { name, type, id_number: token } }); 
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to register attendance.' });
     } finally {

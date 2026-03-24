@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { UserPlus, QrCode } from "lucide-react";
 import { QRScanner } from "./QRScanner";
+import { verifyQRData } from "@/lib/security";
 
 // Validation schemas
 const memberFormSchema = z.object({
@@ -66,20 +67,35 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
     const sanitizedData = scannedData.slice(0, 1000);
     let idNumber = sanitizedData;
     
-    try {
-      const rawParsed = JSON.parse(sanitizedData);
-      // Validate parsed QR data
-      const parsed = qrDataSchema.safeParse(rawParsed);
-      
+    const verifiedData = await verifyQRData(sanitizedData);
+    
+    if (verifiedData) {
+      const parsed = qrDataSchema.safeParse(verifiedData);
       if (parsed.success) {
         if (parsed.data.id_number) idNumber = parsed.data.id_number;
         if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
         if (parsed.data.email) setFormData(prev => ({ ...prev, email: parsed.data.email! }));
         if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
       }
-    } catch {
-      // Not JSON, treat as plain ID number - limit length
-      idNumber = sanitizedData.slice(0, 50);
+      toast.success("Secure Pass scanned.");
+    } else {
+      try {
+        const rawParsed = JSON.parse(sanitizedData);
+        // Validate parsed QR data
+        const parsed = qrDataSchema.safeParse(rawParsed);
+        
+        if (parsed.success) {
+          if (parsed.data.id_number) idNumber = parsed.data.id_number;
+          if (parsed.data.name) setFormData(prev => ({ ...prev, name: parsed.data.name! }));
+          if (parsed.data.email) setFormData(prev => ({ ...prev, email: parsed.data.email! }));
+          if (parsed.data.phone) setFormData(prev => ({ ...prev, phone: parsed.data.phone! }));
+        }
+        toast.info("Unverified Pass scanned.");
+      } catch {
+        // Not JSON, treat as plain ID number - limit length
+        idNumber = sanitizedData.slice(0, 50);
+        toast.info("ID barcode scanned.");
+      }
     }
 
     setFormData(prev => ({ ...prev, id_number: idNumber.slice(0, 50) }));

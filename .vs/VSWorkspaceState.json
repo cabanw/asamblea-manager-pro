@@ -1,9 +1,10 @@
 {
   "ExpandedNodes": [
     "",
+    "\\.idx",
     "\\public",
     "\\src",
-    "\\src\\pages"
+    "\\supabase"
   ],
   "PreviewInSolutionExplorer": false
 }

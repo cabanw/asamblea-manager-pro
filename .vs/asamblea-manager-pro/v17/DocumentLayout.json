@@ -1,11 +1,7 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\registro_asamblea\\asamblea-manager-pro\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Wilfredo Caban\\Documents\\git_code\\WordClock.py||{8B382828-6202-11D1-8870-0000F87579D2}"
-    }
-  ],
+  "WorkspaceRootPath": "C:\\Users\\Wilfredo Caban\\OneDrive - JC Automation, Corp\\Documents 1\\Visual Studio 2022\\asamblea-manager-pro\\",
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -13,18 +9,19 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": -1,
           "Children": [
             {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "WordClock.py",
-              "DocumentMoniker": "C:\\Users\\Wilfredo Caban\\Documents\\git_code\\WordClock.py",
-              "RelativeDocumentMoniker": "..\\..\\Users\\Wilfredo Caban\\Documents\\git_code\\WordClock.py",
-              "ToolTip": "C:\\Users\\Wilfredo Caban\\Documents\\git_code\\WordClock.py",
-              "RelativeToolTip": "..\\..\\Users\\Wilfredo Caban\\Documents\\git_code\\WordClock.py",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.002457|",
-              "WhenOpened": "2025-12-23T14:32:29.656Z"
+              "$type": "Bookmark",
+              "Name": "ST:128:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:129:0:{116d2292-e37d-41cd-a077-ebacac4c8cc4}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             }
           ]
         }

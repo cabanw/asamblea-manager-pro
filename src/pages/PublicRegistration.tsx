@@ -13,66 +13,87 @@ const PublicRegistration = () => {
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [type, setType] = useState('');
+  const [position, setPosition] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !type) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please fill in all fields.' });
+    if (!name || !type || (type === 'member' && !position)) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Por favor complete todos los campos requeridos.' });
       return;
     }
     setIsLoading(true);
 
     try {
       const { error } = await supabase.functions.invoke('register-attendance', {
-        body: { token, name, type },
+        body: { token, name, type, position: type === 'member' ? position : null },
       });
 
       if (error) {
         throw new Error(error.message);
       }
 
-      toast({ title: 'Success', description: 'Your attendance has been registered.' });
-      navigate('/registration-success', { state: { name, type, id_number: token } }); 
+      toast({ title: 'Éxito', description: 'Su asistencia ha sido registrada.' });
+      navigate('/registration-success', { state: { name, type, position, id_number: token } }); 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to register attendance.' });
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo registrar la asistencia.' });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <Card className="w-full max-w-md mx-4">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Register Attendance</CardTitle>
+          <CardTitle className="text-center">Registro de Asistencia</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo</label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your full name"
+                placeholder="Ingrese su nombre completo"
                 disabled={isLoading}
               />
             </div>
             <div>
-              <label htmlFor="type" className="block text-sm font-medium text-gray-700">Attendee Type</label>
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Asistente</label>
               <Select onValueChange={setType} value={type} disabled={isLoading}>
                 <SelectTrigger id="type">
-                  <SelectValue placeholder="Select your role" />
+                  <SelectValue placeholder="Seleccione su opción" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="minister">Minister</SelectItem>
-                  <SelectItem value="guest">Guest</SelectItem>
+                  <SelectItem value="member">Miembro Activo</SelectItem>
+                  <SelectItem value="guest">Invitado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Registering...' : 'Register'}
+            
+            {type === 'member' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Posición</label>
+                <Select onValueChange={setPosition} value={position} disabled={isLoading}>
+                  <SelectTrigger id="position">
+                    <SelectValue placeholder="Seleccione su posición" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="president">Presidente</SelectItem>
+                    <SelectItem value="vice_president">Vicepresidente</SelectItem>
+                    <SelectItem value="secretary">Secretario/a</SelectItem>
+                    <SelectItem value="treasurer">Tesorero/a</SelectItem>
+                    <SelectItem value="board_member">Vocal (Board Member)</SelectItem>
+                    <SelectItem value="member">Miembro General</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full mt-6" disabled={isLoading}>
+              {isLoading ? 'Registrando...' : 'Registrar'}
             </Button>
           </form>
         </CardContent>

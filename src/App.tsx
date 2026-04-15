@@ -12,6 +12,11 @@ import Register from "./pages/Register";
 import Attendance from "./pages/Attendance";
 import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
+import AdminElections from "./pages/AdminElections";
+import ElectionDetailAdmin from "./pages/ElectionDetailAdmin";
+import ElectionsPublic from "./pages/ElectionsPublic";
+import VotingBooth from "./pages/VotingBooth";
+import ElectionResults from "./pages/ElectionResults";
 import NotFound from "./pages/NotFound";
 import PublicRegistration from './pages/PublicRegistration';
 import RegistrationSuccess from './pages/RegistrationSuccess';
@@ -65,6 +70,36 @@ const App = () => (
               }
             />
             <Route
+              path="/elections"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ElectionsPublic />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/elections/:id/vote"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <VotingBooth />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/elections/:id/results"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <ElectionResults />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/reports"
               element={
                 <ProtectedRoute requiredRole="admin">
@@ -80,6 +115,26 @@ const App = () => (
                 <ProtectedRoute requiredRole="admin">
                   <AppLayout>
                     <AdminSettings />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/elections"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout>
+                    <AdminElections />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/elections/:id"
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <AppLayout>
+                    <ElectionDetailAdmin />
                   </AppLayout>
                 </ProtectedRoute>
               }

@@ -25,7 +25,7 @@ const PublicRegistration = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.functions.invoke('register-attendance', {
+      const { data, error } = await supabase.functions.invoke('register-attendance', {
         body: { token, name, type, position: type === 'member' ? position : null },
       });
 
@@ -34,7 +34,7 @@ const PublicRegistration = () => {
       }
 
       toast({ title: 'Éxito', description: 'Su asistencia ha sido registrada.' });
-      navigate('/registration-success', { state: { name, type, position, id_number: token } }); 
+      navigate('/registration-success', { state: { name, type, position, id_number: token, voter_pin: data?.voter_pin } }); 
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo registrar la asistencia.' });
     } finally {
@@ -75,18 +75,16 @@ const PublicRegistration = () => {
             
             {type === 'member' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Posición</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Credencial / Categoría de Miembro</label>
                 <Select onValueChange={setPosition} value={position} disabled={isLoading}>
                   <SelectTrigger id="position">
-                    <SelectValue placeholder="Seleccione su posición" />
+                    <SelectValue placeholder="Seleccione su credencial" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="president">Presidente</SelectItem>
-                    <SelectItem value="vice_president">Vicepresidente</SelectItem>
-                    <SelectItem value="secretary">Secretario/a</SelectItem>
-                    <SelectItem value="treasurer">Tesorero/a</SelectItem>
-                    <SelectItem value="board_member">Vocal (Board Member)</SelectItem>
-                    <SelectItem value="member">Miembro General</SelectItem>
+                    <SelectItem value="ministro_ordenado">Ministro Ordenado</SelectItem>
+                    <SelectItem value="ministro_licenciado">Ministro Licenciado</SelectItem>
+                    <SelectItem value="ministro_certificado">Ministro Certificado</SelectItem>
+                    <SelectItem value="delegado_pastor">Delegado (Pastor)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

@@ -2,19 +2,20 @@ import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { CheckCircle2, ShieldCheck, User, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, User, ArrowLeft, KeyRound } from 'lucide-react';
 
 export default function VotingBooth() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   
   const [selections, setSelections] = useState<Record<string, string>>({});
+  const [pinInput, setPinInput] = useState('');
+  const [verifiedPin, setVerifiedPin] = useState<string | null>(null);
 
   // 1. Fetch Election Info
   const { data: election, isLoading: isLoadingElection } = useQuery({
@@ -26,20 +27,20 @@ export default function VotingBooth() {
     }
   });
 
-  // 2. Fetch User's Existing Votes (To block double voting)
+  // 2. Fetch User's Existing Votes (Requires Verified PIN)
   const { data: existingVotes, isLoading: isLoadingVotes } = useQuery({
-    queryKey: ['my-votes', id],
+    queryKey: ['my-votes', id, verifiedPin],
     queryFn: async () => {
-      if (!user) return [];
+      if (!verifiedPin) return [];
       const { data, error } = await (supabase as any)
         .from('votes')
         .select('*')
         .eq('election_id', id)
-        .eq('voter_id', user.id);
+        .eq('voter_pin', verifiedPin);
       if (error) throw error;
       return data;
     },
-    enabled: !!user
+    enabled: !!verifiedPin
   });
 
   // 3. Fetch Candidates
@@ -52,6 +53,29 @@ export default function VotingBooth() {
         .eq('election_id', id);
       if (error) throw error;
       return data;
+    }
+  });
+
+  // PIN Verification Logic
+  const verifyPinMutation = useMutation({
+    mutationFn: async (pin: string) => {
+      if (!pin) throw new Error("Ingrese un PIN válido");
+      const { data, error } = await (supabase as any)
+        .from('assembly_attendance')
+        .select('voter_pin, attendee_type, full_name')
+        .eq('voter_pin', pin.trim().toUpperCase())
+        .single();
+      
+      if (error || !data) throw new Error("PIN Inválido o no asiste en este registro.");
+      if (data.attendee_type !== 'member') throw new Error("Los invitados no tienen derecho al voto en la asamblea.");
+      return data;
+    },
+    onSuccess: (data) => {
+      setVerifiedPin(data.voter_pin);
+      toast.success(`Identidad Confirmada: ${data.full_name}`);
+    },
+    onError: (err: any) => {
+      toast.error('Acceso Denegado: ' + err.message);
     }
   });
 
@@ -68,16 +92,15 @@ export default function VotingBooth() {
   // Submit Votes
   const submitVotes = useMutation({
     mutationFn: async () => {
-      if (!user) throw new Error("No estás autenticado");
+      if (!verifiedPin) throw new Error("No estás autenticado con PIN");
       
       const votesToInsert = Object.entries(selections).map(([position, candidateId]) => ({
         election_id: id,
         candidate_id: candidateId,
         position_voted: position,
-        voter_id: user.id
+        voter_pin: verifiedPin
       }));
 
-      // Inserción múltiple
       const { error } = await (supabase as any).from('votes').insert(votesToInsert);
       if (error) throw error;
     },
@@ -97,7 +120,7 @@ export default function VotingBooth() {
   const isFormValid = Object.keys(candidatesByPosition).length > 0 && 
                       Object.keys(selections).length === Object.keys(candidatesByPosition).length;
 
-  if (isLoadingElection || isLoadingVotes || isLoadingCandidates) {
+  if (isLoadingElection || isLoadingCandidates) {
     return <div className="flex justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
   }
 
@@ -110,7 +133,48 @@ export default function VotingBooth() {
     );
   }
 
-  // If already voted
+  // --- STEP 1: LOGIN CON PIN ---
+  if (!verifiedPin) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[70vh] bg-zinc-50 p-4">
+        <Button variant="ghost" onClick={() => navigate('/elections')} className="absolute top-24 left-4 sm:left-8">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Volver
+        </Button>
+        <Card className="w-full max-w-sm shadow-xl border-primary/20">
+          <CardHeader className="text-center pb-4 pt-8">
+            <KeyRound className="h-12 w-12 text-primary mx-auto mb-4" />
+            <CardTitle className="text-2xl">Acceso a la Urna</CardTitle>
+            <CardDescription>
+              Introduce el PIN Secreto que te fue generado al registrar tu asistencia el día de hoy.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Input 
+                id="pin" 
+                autoComplete="off"
+                placeholder="Ej. 129340" 
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                className="text-center text-3xl font-bold tracking-widest h-16 uppercase"
+              />
+            </div>
+            <Button 
+              className="w-full h-12 text-lg" 
+              disabled={verifyPinMutation.isPending || pinInput.length < 3}
+              onClick={() => verifyPinMutation.mutate(pinInput)}
+            >
+              {verifyPinMutation.isPending ? 'Validando...' : 'Entrar a Votar'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // --- STEP 2: ALREADY VOTED? ---
+  if (isLoadingVotes) return <div className="text-center p-8">Cargando status electoral...</div>;
+
   if (existingVotes && existingVotes.length > 0) {
     return (
       <div className="container mx-auto py-12 px-4 max-w-md">
@@ -122,7 +186,7 @@ export default function VotingBooth() {
           <CardContent className="text-center text-zinc-600">
             <p className="mb-4">Tu voto ha sido encriptado y contabilizado exitosamente en el bloque de la elección.</p>
             <div className="bg-green-50 rounded-md p-3 text-sm flex items-center justify-center text-green-800">
-              <ShieldCheck className="h-4 w-4 mr-2" /> Voto validado por Supabase
+              <ShieldCheck className="h-4 w-4 mr-2" /> Voto asociado permanentemente a tu asistencia
             </div>
           </CardContent>
           <CardFooter>
@@ -133,17 +197,18 @@ export default function VotingBooth() {
     );
   }
 
+  // --- STEP 3: BALLOT BOOTH ---
   return (
     <div className="container mx-auto py-8 max-w-4xl px-4">
       <Button variant="ghost" onClick={() => navigate('/elections')} className="mb-6">
-        <ArrowLeft className="mr-2 h-4 w-4" /> Regresar
+        <ArrowLeft className="mr-2 h-4 w-4" /> Salir de la Urna
       </Button>
 
       <div className="mb-8">
         <h1 className="text-4xl font-extrabold tracking-tight mb-2">{election.title}</h1>
         <p className="text-lg text-muted-foreground bg-blue-50 border-l-4 border-blue-500 p-3 rounded-r-md flex items-center">
           <ShieldCheck className="mr-2 h-5 w-5 text-blue-600" />
-          Esta es una boleta oficial. Tu voto es totalmente secreto e irreversible.
+          Esta es una boleta oficial. Tú has sido verificado exitosamente mediante PIN de Asistencia.
         </p>
       </div>
 

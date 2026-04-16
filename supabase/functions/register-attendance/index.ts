@@ -26,7 +26,7 @@ serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
-    const { token, name, type } = await req.json();
+    const { token, name, type, position } = await req.json();
 
     if (!token || !name || !type) {
       return new Response(JSON.stringify({ error: "Token, name, and type are required" }), {
@@ -55,10 +55,14 @@ serve(async (req) => {
       });
     }
 
+    const voter_pin = Math.floor(100000 + Math.random() * 900000).toString();
+
     const { error: insertError } = await supabaseAdmin.from("assembly_attendance").insert({
       assembly_id: link.assembly_id,
       full_name: name,
       attendee_type: type, // 'minister' or 'guest'
+      position: position || null,
+      voter_pin: voter_pin,
       attended: true,
     });
 
@@ -69,7 +73,7 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true }), {
+    return new Response(JSON.stringify({ success: true, voter_pin }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

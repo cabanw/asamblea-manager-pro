@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +15,7 @@ type Election = {
   id: string;
   title: string;
   description: string | null;
-  status: 'draft' | 'active' | 'closed';
+  status: 'draft' | 'nominating' | 'active' | 'closed';
 };
 
 type Candidate = {
@@ -62,9 +62,41 @@ export default function ElectionDetailAdmin() {
     }
   });
 
+  // Fetch Nominations (Proposals)
+  const { data: nominations, isLoading: isLoadingNominations } = useQuery({
+    queryKey: ['nominations', id],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from('nominations')
+        .select('*')
+        .eq('election_id', id);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Agrupar nominaciones por puesto y nombre (Case insensitive y trim para mejor agrupación)
+  const groupedNominations = useMemo(() => {
+    if (!nominations) return [];
+    const map: Record<string, { position: string, name: string, count: number }> = {};
+    nominations.forEach((n: any) => {
+      const cleanName = n.candidate_name.trim().toLowerCase();
+      const key = `${n.position}|${cleanName}`;
+      if (!map[key]) {
+        map[key] = { position: n.position, name: n.candidate_name.trim(), count: 0 };
+      }
+      map[key].count++;
+    });
+    // Ordenar primero por posición, luego por popularidad desc
+    return Object.values(map).sort((a, b) => {
+       if (a.position === b.position) return b.count - a.count;
+       return a.position.localeCompare(b.position);
+    });
+  }, [nominations]);
+
   // Mutations
   const updateStatus = useMutation({
-    mutationFn: async (newStatus: 'active' | 'closed') => {
+    mutationFn: async (newStatus: 'draft' | 'nominating' | 'active' | 'closed') => {
       const { error } = await (supabase as any)
         .from('elections')
         .update({ status: newStatus })
@@ -79,14 +111,15 @@ export default function ElectionDetailAdmin() {
   });
 
   const addCandidate = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (candidateOverride?: any) => {
+      const payload = candidateOverride ? { ...candidateOverride, election_id: id } : { ...newCandidate, election_id: id };
       const { error } = await (supabase as any)
         .from('candidates')
-        .insert([{ ...newCandidate, election_id: id }]);
+        .insert([payload]);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Candidato registrado');
+      toast.success('Candidato registrado exitosamente');
       setIsCandidateDialogOpen(false);
       setNewCandidate({ name: '', position: '', description: '' });
       queryClient.invalidateQueries({ queryKey: ['candidates', id] });
@@ -130,12 +163,39 @@ export default function ElectionDetailAdmin() {
           </CardHeader>
           <CardContent className="space-y-4">
             {election.status === 'draft' && (
-              <Button 
-                onClick={() => updateStatus.mutate('active')} 
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                <PlayCircle className="mr-2 h-4 w-4" /> Iniciar Votación
-              </Button>
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => updateStatus.mutate('nominating')} 
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  <PlayCircle className="mr-2 h-4 w-4" /> Abrir Fase de Postulaciones
+                </Button>
+                <div className="text-center text-xs text-muted-foreground w-full">O puede saltar este paso y:</div>
+                <Button 
+                  onClick={() => updateStatus.mutate('active')} 
+                  variant="outline"
+                  className="w-full border-green-200 text-green-700 hover:bg-green-50"
+                >
+                  <PlayCircle className="mr-2 h-4 w-4" /> Iniciar Votación Directa
+                </Button>
+              </div>
+            )}
+            {election.status === 'nominating' && (
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => updateStatus.mutate('draft')} 
+                  variant="secondary"
+                  className="w-full"
+                >
+                  <StopCircle className="mr-2 h-4 w-4" /> Cerrar Postulaciones (Pausar)
+                </Button>
+                <Button 
+                  onClick={() => updateStatus.mutate('active')} 
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  <PlayCircle className="mr-2 h-4 w-4" /> Lanzar Elección Final (Votar)
+                </Button>
+              </div>
             )}
             {election.status === 'active' && (
               <Button 
@@ -159,9 +219,9 @@ export default function ElectionDetailAdmin() {
         </Card>
       </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold tracking-tight">Candidatos Postulados</h2>
-        {election.status === 'draft' && (
+      <div className="flex justify-between items-center mb-6 mt-8">
+        <h2 className="text-2xl font-bold tracking-tight">Candidatos Oficiales (Boleta)</h2>
+        {(election.status === 'draft' || election.status === 'nominating') && (
           <Dialog open={isCandidateDialogOpen} onOpenChange={setIsCandidateDialogOpen}>
             <DialogTrigger asChild>
               <Button><UserPlus className="mr-2 h-4 w-4" /> Agregar Candidato</Button>
@@ -198,7 +258,7 @@ export default function ElectionDetailAdmin() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={() => addCandidate.mutate()} disabled={addCandidate.isPending || !newCandidate.name || !newCandidate.position}>
+                <Button onClick={() => addCandidate.mutate(undefined)} disabled={addCandidate.isPending || !newCandidate.name || !newCandidate.position}>
                   {addCandidate.isPending ? 'Guardando...' : 'Guardar Candidato'}
                 </Button>
               </DialogFooter>
@@ -212,12 +272,12 @@ export default function ElectionDetailAdmin() {
       ) : candidates?.length === 0 ? (
         <Card className="text-center py-12 border-dashed bg-muted/30">
           <CardContent>
-            <p className="text-muted-foreground text-lg">No hay candidatos registrados en esta elección.</p>
+            <p className="text-muted-foreground text-lg">No hay candidatos en la boleta oficial aún.</p>
             {election.status === 'draft' && <p className="text-sm mt-2">Agrega candidatos para poder iniciar la votación.</p>}
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-12">
           {candidates?.map(candidate => (
             <Card key={candidate.id} className="overflow-hidden">
               <div className="bg-muted aspect-square flex items-center justify-center relative">
@@ -233,11 +293,68 @@ export default function ElectionDetailAdmin() {
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 <p className="text-sm text-muted-foreground line-clamp-3">
-                  {candidate.description || 'Sin descripción'}
+                  {candidate.description || 'Postulado por Asamblea'}
                 </p>
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* SECCIÓN DE POSTULACIONES DEL PÚBLICO */}
+      <h2 className="text-2xl font-bold tracking-tight mb-6 pt-6 border-t border-zinc-200">
+        Bandeja de Nombres Sugeridos por la Asamblea
+      </h2>
+      
+      {isLoadingNominations ? (
+        <p>Cargando sugerencias de la asamblea...</p>
+      ) : groupedNominations.length === 0 ? (
+        <Card className="text-center py-12 bg-blue-50/50 border-blue-100">
+          <CardContent>
+            <p className="text-blue-800 text-lg">La audiencia aún no ha enviado propuestas.</p>
+            {election.status === 'nominating' && (
+              <p className="text-sm mt-2 text-blue-600 animate-pulse">Cámara de postulaciones actualmente ABIERTA. Esperando respuestas...</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {groupedNominations.map((group, index) => {
+            // Check if already an official candidate
+            const isOfficial = candidates?.some(
+              c => c.name.toLowerCase() === group.name.toLowerCase() && c.position === group.position
+            );
+
+            return (
+              <Card key={index} className={`border-l-4 ${isOfficial ? 'border-l-green-500 opacity-60' : 'border-l-blue-500'}`}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xl">{group.name}</CardTitle>
+                  <CardDescription className="font-semibold text-blue-700">{group.position}</CardDescription>
+                </CardHeader>
+                <CardContent className="pb-4">
+                  <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Sugerido {group.count} {group.count === 1 ? 'vez' : 'veces'}
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button 
+                    variant={isOfficial ? "secondary" : "default"}
+                    className="w-full"
+                    disabled={isOfficial || addCandidate.isPending}
+                    onClick={() => {
+                      addCandidate.mutate({ 
+                        name: group.name, 
+                        position: group.position, 
+                        description: 'Aprobado desde sugerencias de asamblea.' 
+                      });
+                    }}
+                  >
+                    {isOfficial ? 'Ya está en la Boleta ✅' : 'Volver Candidato Oficial'}
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -20,6 +20,7 @@ import ElectionResults from "./pages/ElectionResults";
 import NotFound from "./pages/NotFound";
 import PublicRegistration from './pages/PublicRegistration';
 import RegistrationSuccess from './pages/RegistrationSuccess';
+import NominationBooth from './pages/NominationBooth';
 
 const queryClient = new QueryClient();
 
@@ -72,31 +73,33 @@ const App = () => (
             <Route
               path="/elections"
               element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ElectionsPublic />
-                  </AppLayout>
-                </ProtectedRoute>
+                <AppLayout>
+                  <ElectionsPublic />
+                </AppLayout>
               }
             />
             <Route
               path="/elections/:id/vote"
               element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <VotingBooth />
-                  </AppLayout>
-                </ProtectedRoute>
+                <AppLayout>
+                  <VotingBooth />
+                </AppLayout>
+              }
+            />
+            <Route
+              path="/elections/:id/nominate"
+              element={
+                <AppLayout>
+                  <NominationBooth />
+                </AppLayout>
               }
             />
             <Route
               path="/elections/:id/results"
               element={
-                <ProtectedRoute>
-                  <AppLayout>
-                    <ElectionResults />
-                  </AppLayout>
-                </ProtectedRoute>
+                <AppLayout>
+                  <ElectionResults />
+                </AppLayout>
               }
             />
             <Route

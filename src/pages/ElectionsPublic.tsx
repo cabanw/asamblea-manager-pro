@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Vote, Calendar, Lock } from 'lucide-react';
+import { Vote, Calendar, Lock, Users } from 'lucide-react';
 
 export default function ElectionsPublic() {
   const navigate = useNavigate();
@@ -46,9 +46,11 @@ export default function ElectionsPublic() {
                 <div className="flex justify-between items-start mb-2">
                   <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${
                     election.status === 'active' ? 'bg-green-100 text-green-700 border-green-200 animate-pulse' :
+                    election.status === 'nominating' ? 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse' :
                     'bg-slate-100 text-slate-700 border-slate-200'
                   }`}>
-                    {election.status === 'active' ? 'EN CURSO - VOTACIÓN ABIERTA' : 'FINALIZADA'}
+                    {election.status === 'active' ? 'EN CURSO - VOTACIÓN ABIERTA' : 
+                     election.status === 'nominating' ? 'ABIERTA - FASE DE POSTULACIONES' : 'FINALIZADA'}
                   </span>
                 </div>
                 <CardTitle className="text-2xl">{election.title}</CardTitle>
@@ -63,15 +65,22 @@ export default function ElectionsPublic() {
               <CardFooter>
                 {election.status === 'active' ? (
                   <Button 
-                    className="w-full bg-primary hover:bg-primary/90"
+                    className="w-full bg-green-600 hover:bg-green-700 font-semibold"
                     onClick={() => navigate(`/elections/${election.id}/vote`)}
                   >
                     <Vote className="mr-2 h-4 w-4" /> Entrar a Votar
                   </Button>
+                ) : election.status === 'nominating' ? (
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700 font-semibold"
+                    onClick={() => navigate(`/elections/${election.id}/nominate`)}
+                  >
+                    <Users className="mr-2 h-4 w-4" /> Proponer Candidatos
+                  </Button>
                 ) : (
                   <Button 
                     variant="outline" 
-                    className="w-full border-blue-200 text-blue-700 hover:bg-blue-50"
+                    className="w-full border-slate-200 text-slate-700 hover:bg-slate-50"
                     onClick={() => navigate(`/elections/${election.id}/results`)}
                   >
                     Ver Resultados

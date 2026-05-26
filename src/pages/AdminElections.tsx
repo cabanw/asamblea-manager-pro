@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { PlusCircle, Calendar, ChevronRight } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { PlusCircle, Calendar, ChevronRight, Trash2 } from 'lucide-react';
 
 type Election = {
   id: string;
@@ -68,6 +69,23 @@ export default function AdminElections() {
     if (!title) return toast.error('El título es requerido');
     createElection.mutate();
   };
+
+  const deleteElection = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase as any)
+        .from('elections')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Elección eliminada exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['elections'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Error al eliminar: ${error.message}`);
+    }
+  });
 
   return (
     <div className="container mx-auto py-8">
@@ -149,7 +167,33 @@ export default function AdminElections() {
                   <Calendar className="mr-2 h-4 w-4" /> 
                   Creado el {new Date(election.created_at).toLocaleDateString()}
                 </div>
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center mt-4">
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar {election.title}?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción es permanente. Se borrarán todos los votos, candidatos y configuraciones de esta elección.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction 
+                            onClick={() => deleteElection.mutate(election.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Sí, Eliminar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                   <Button variant="ghost" size="sm" className="text-primary">
                     Gestionar <ChevronRight className="ml-1 h-4 w-4" />
                   </Button>

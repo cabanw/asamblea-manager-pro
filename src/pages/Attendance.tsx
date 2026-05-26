@@ -18,7 +18,7 @@ const QUORUM_FRACTION = 2 / 3;
 const Attendance = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [stats, setStats] = useState({
-    totalMembers: 27,
+    totalMembers: 0,
     presentMembers: 0,
     presentGuests: 0,
     quorumRequired: QUORUM_FRACTION * 100, // ~66.6667

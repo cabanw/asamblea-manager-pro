@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, UserPlus, PlayCircle, StopCircle, User } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { ArrowLeft, UserPlus, PlayCircle, StopCircle, User, Trash2 } from 'lucide-react';
 
 type Election = {
   id: string;
@@ -106,6 +107,22 @@ export default function ElectionDetailAdmin() {
     onSuccess: () => {
       toast.success('Estado de la elección actualizado');
       queryClient.invalidateQueries({ queryKey: ['election', id] });
+    },
+    onError: (err: any) => toast.error(err.message)
+  });
+
+  const deleteElection = useMutation({
+    mutationFn: async () => {
+      const { error } = await (supabase as any)
+        .from('elections')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Elección eliminada exitosamente');
+      queryClient.invalidateQueries({ queryKey: ['elections'] });
+      navigate('/admin/elections');
     },
     onError: (err: any) => toast.error(err.message)
   });
@@ -215,6 +232,33 @@ export default function ElectionDetailAdmin() {
                 Ver Reportes Oficiales
               </Button>
             )}
+
+            <div className="pt-4 mt-4 border-t border-zinc-200">
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" className="w-full text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar Elección
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Eliminará permanentemente la elección y todos sus candidatos, votos y nominaciones asociados.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => deleteElection.mutate()}
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      {deleteElection.isPending ? 'Eliminando...' : 'Sí, Eliminar'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </CardContent>
         </Card>
       </div>

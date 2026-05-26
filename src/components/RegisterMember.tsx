@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { UserPlus, QrCode } from "lucide-react";
+import { UserPlus, QrCode, KeyRound, Copy, CheckCircle2 } from "lucide-react";
 import { QRScanner } from "./QRScanner";
 import { verifyQRData } from "@/lib/security";
 
@@ -41,6 +42,10 @@ interface MemberError extends Error {
     message: string;
 }
 
+// Genera un PIN único de 6 dígitos
+const generateVoterPin = (): string =>
+  Math.floor(100000 + Math.random() * 900000).toString();
+
 export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) => {
   const [positions, setPositions] = useState<Position[]>([]);
   const [formData, setFormData] = useState({
@@ -52,6 +57,10 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
   });
   const [loading, setLoading] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [pinDialogOpen, setPinDialogOpen] = useState(false);
+  const [lastPin, setLastPin] = useState("");
+  const [lastMemberName, setLastMemberName] = useState("");
+  const [pinCopied, setPinCopied] = useState(false);
 
   useEffect(() => {
     loadPositions();
@@ -181,7 +190,20 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
         return;
       }
 
-      // Register attendance
+      // Generar PIN único para votar
+      let voter_pin = generateVoterPin();
+      // Asegurar unicidad — reintentar si hay colisión
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const { data: existing } = await supabase
+          .from("attendance_records")
+          .select("id")
+          .eq("voter_pin", voter_pin)
+          .maybeSingle();
+        if (!existing) break;
+        voter_pin = generateVoterPin();
+      }
+
+      // Register attendance con PIN
       const { error: attendanceError } = await supabase
         .from("attendance_records")
         .insert({
@@ -189,11 +211,15 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
           attendee_type: "member",
           member_id: memberId,
           is_present: true,
+          voter_pin,
         });
 
       if (attendanceError) throw attendanceError;
 
-      toast.success("Member registered successfully!");
+      setLastPin(voter_pin);
+      setLastMemberName(validatedData.name);
+      setPinCopied(false);
+      setPinDialogOpen(true);
       setFormData({ name: "", email: "", phone: "", id_number: "", position_id: "" });
       onSuccess();
     } catch (error) {
@@ -204,15 +230,63 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
     }
   };
 
+  const handleCopyPin = () => {
+    navigator.clipboard.writeText(lastPin);
+    setPinCopied(true);
+    setTimeout(() => setPinCopied(false), 2000);
+  };
+
   return (
     <>
+      {/* Diálogo de confirmación con PIN */}
+      <Dialog open={pinDialogOpen} onOpenChange={setPinDialogOpen}>
+        <DialogContent className="sm:max-w-sm text-center">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-center gap-2 text-2xl">
+              <KeyRound className="h-6 w-6 text-primary" />
+              ¡Registro Exitoso!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-muted-foreground">
+              <span className="font-semibold text-foreground">{lastMemberName}</span> ha sido
+              registrado/a. Entrega este PIN para votar:
+            </p>
+            <div className="bg-primary/5 border-2 border-primary/20 rounded-xl p-4">
+              <p className="text-5xl font-black tracking-[0.3em] text-primary select-all">
+                {lastPin}
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              ⚠️ Este PIN es personal e intransferible. Úsalo en la urna para votar.
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={handleCopyPin}
+              >
+                {pinCopied ? (
+                  <><CheckCircle2 className="h-4 w-4 text-green-500" /> Copiado</>  
+                ) : (
+                  <><Copy className="h-4 w-4" /> Copiar PIN</>
+                )}
+              </Button>
+              <Button className="flex-1" onClick={() => setPinDialogOpen(false)}>
+                Siguiente Miembro
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card className="shadow-lg">
         <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5">
           <CardTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Register Member
+            Registrar Miembro
           </CardTitle>
-          <CardDescription>Add or check-in an existing member</CardDescription>
+          <CardDescription>Agregar o hacer check-in de un miembro existente</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">

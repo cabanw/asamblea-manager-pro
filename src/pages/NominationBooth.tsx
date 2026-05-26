@@ -57,15 +57,19 @@ export default function NominationBooth() {
   const verifyPinMutation = useMutation({
     mutationFn: async (pin: string) => {
       if (!pin) throw new Error("Ingrese un PIN válido");
+      const pinClean = pin.trim();
+
+      // Buscar el PIN en attendance_records (sólo miembros presentes)
       const { data, error } = await (supabase as any)
-        .from('assembly_attendance')
-        .select('voter_pin, attendee_type, full_name')
-        .eq('voter_pin', pin.trim().toUpperCase())
-        .single();
-      
-      if (error || !data) throw new Error("PIN Inválido o no asiste.");
+        .from('attendance_records')
+        .select('voter_pin, attendee_type, is_present, members:member_id (name)')
+        .eq('voter_pin', pinClean)
+        .eq('is_present', true)
+        .maybeSingle();
+
+      if (error || !data) throw new Error("PIN inválido. Verifica que tu registro de asistencia esté activo.");
       if (data.attendee_type !== 'member') throw new Error("Solo miembros activos pueden postular.");
-      return data;
+      return { voter_pin: data.voter_pin, full_name: data.members?.name ?? 'Miembro' };
     },
     onSuccess: (data) => {
       setVerifiedPin(data.voter_pin);

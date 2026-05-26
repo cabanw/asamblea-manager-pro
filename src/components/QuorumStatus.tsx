@@ -31,10 +31,16 @@ export const QuorumStatus = ({
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Quorum Status</h2>
-            <p className="text-muted-foreground">
-              2/3 attendance required ({Math.ceil((2 / 3) * totalMembers)} of {totalMembers} members)
-            </p>
+            <h2 className="text-2xl font-bold">Estado del Quórum</h2>
+            {totalMembers > 0 ? (
+              <p className="text-muted-foreground">
+                Se requiere 2/3 de asistencia ({membersNeededForQuorum} de {totalMembers} miembros)
+              </p>
+            ) : (
+              <p className="text-warning font-semibold">
+                No hay miembros activos registrados
+              </p>
+            )}
           </div>
           <div className={cn(
             "flex items-center gap-2 px-4 py-2 rounded-full font-semibold",
@@ -45,12 +51,12 @@ export const QuorumStatus = ({
             {quorumAchieved ? (
               <>
                 <CheckCircle2 className="h-5 w-5" />
-                Quorum Achieved
+                Quórum Alcanzado
               </>
             ) : (
               <>
                 <XCircle className="h-5 w-5" />
-                No Quorum
+                Sin Quórum
               </>
             )}
           </div>
@@ -58,7 +64,7 @@ export const QuorumStatus = ({
 
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="font-medium">Present: {presentMembers} / {totalMembers}</span>
+            <span className="font-medium">Presentes: {presentMembers} / {totalMembers}</span>
             <span className="font-bold">{percentage.toFixed(1)}%</span>
           </div>
           <Progress 
@@ -70,15 +76,15 @@ export const QuorumStatus = ({
           />
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>0%</span>
-            <span className="font-medium">Required: 2/3 (66.67%)</span>
+            <span className="font-medium">Requerido: 2/3 (66.67%)</span>
             <span>100%</span>
           </div>
         </div>
 
-        {!quorumAchieved && membersNeeded > 0 && (
+        {!quorumAchieved && membersNeeded > 0 && totalMembers > 0 && (
           <div className="bg-background/50 rounded-lg p-4 border">
             <p className="text-sm text-center">
-              <span className="font-semibold text-warning">{membersNeeded}</span> more member{membersNeeded !== 1 ? 's' : ''} needed to achieve quorum
+              Faltan <span className="font-semibold text-warning">{membersNeeded}</span> miembro{membersNeeded !== 1 ? 's' : ''} para alcanzar el quórum
             </p>
           </div>
         )}

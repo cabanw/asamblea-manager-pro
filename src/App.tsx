@@ -21,13 +21,22 @@ import NotFound from "./pages/NotFound";
 import PublicRegistration from './pages/PublicRegistration';
 import RegistrationSuccess from './pages/RegistrationSuccess';
 import NominationBooth from './pages/NominationBooth';
+import AboutDeveloper from './pages/AboutDeveloper';
 
 const queryClient = new QueryClient();
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => (
-  <div className="min-h-screen bg-background">
+  <div className="min-h-screen bg-background flex flex-col">
     <Header />
-    <main>{children}</main>
+    <main className="flex-1">{children}</main>
+    <footer className="py-6 border-t border-border mt-auto bg-card">
+      <div className="container mx-auto px-4 text-center">
+        <a href="/developer" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors flex items-center justify-center gap-2">
+          <span>&lt;/&gt;</span>
+          Desarrollado por Wilfredo Caban
+        </a>
+      </div>
+    </footer>
   </div>
 );
 
@@ -140,6 +149,14 @@ const App = () => (
                     <ElectionDetailAdmin />
                   </AppLayout>
                 </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/developer"
+              element={
+                <AppLayout>
+                  <AboutDeveloper />
+                </AppLayout>
               }
             />
             <Route path="*" element={<NotFound />} />

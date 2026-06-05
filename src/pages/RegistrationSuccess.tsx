@@ -13,6 +13,7 @@ const RegistrationSuccess = () => {
     'treasurer': 'Tesorero/a',
     'board_member': 'Vocal',
     'member': 'Miembro General',
+    'ministro_ordenado': 'Ministro Ordenado',
   };
 
   return (

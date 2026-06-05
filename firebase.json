@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "asamblea-manager-pro-148-cf9ee",
     "public": "dist",
     "ignore": [
       "firebase.json",

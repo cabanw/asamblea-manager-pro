@@ -67,7 +67,11 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
   }, []);
 
   const loadPositions = async () => {
-    const { data } = await supabase.from("positions").select("*").order("name");
+    const { data } = await supabase
+      .from("positions")
+      .select("id, name")
+      .eq("quorum_weight", 1)
+      .order("name");
     if (data) setPositions(data);
   };
 
@@ -351,13 +355,16 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="member-position">Position</Label>
+              <Label htmlFor="member-position">
+                Posición Votante *
+                <span className="ml-2 text-xs font-normal text-muted-foreground">(solo posiciones con derecho a voto)</span>
+              </Label>
               <Select
                 value={formData.position_id}
                 onValueChange={(value) => setFormData({ ...formData, position_id: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select position" />
+                  <SelectValue placeholder="Selecciona posición" />
                 </SelectTrigger>
                 <SelectContent>
                   {positions.map((position) => (

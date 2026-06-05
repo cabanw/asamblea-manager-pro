@@ -270,6 +270,10 @@ export type Database = {
         | "treasurer"
         | "member"
         | "board_member"
+        | "ministro_ordenado"
+        | "ministro_certificado"
+        | "ministro_licenciado"
+        | "delegado_pastor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -405,6 +409,10 @@ export const Constants = {
         "treasurer",
         "member",
         "board_member",
+        "ministro_ordenado",
+        "ministro_certificado",
+        "ministro_licenciado",
+        "delegado_pastor",
       ],
     },
   },

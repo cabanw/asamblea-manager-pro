@@ -16,6 +16,10 @@ type Position = Database["public"]["Tables"]["positions"]["Row"];
 
 // Valid database enum values
 const POSITION_TYPES: PositionType[] = [
+  "ministro_ordenado",
+  "ministro_certificado",
+  "ministro_licenciado",
+  "delegado_pastor",
   "president",
   "vice_president",
   "secretary",
@@ -26,12 +30,16 @@ const POSITION_TYPES: PositionType[] = [
 
 // Display labels
 const POSITION_TYPE_LABELS: Record<PositionType, string> = {
-  president: "President",
-  vice_president: "Vice President",
-  secretary: "Secretary",
-  treasurer: "Treasurer",
-  board_member: "Board Member",
-  member: "Member",
+  ministro_ordenado:    "Ministro Ordenado",
+  ministro_certificado: "Ministro Certificado",
+  ministro_licenciado:  "Ministro Licenciado",
+  delegado_pastor:      "Delegado Pastor",
+  president:            "Presidente",
+  vice_president:       "Vice Presidente",
+  secretary:            "Secretario",
+  treasurer:            "Tesorero",
+  board_member:         "Miembro de Junta",
+  member:               "Miembro",
 };
 
 export const PositionManager = () => {

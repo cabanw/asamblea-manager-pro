@@ -18,6 +18,7 @@ type Position = Database["public"]["Tables"]["positions"]["Row"];
 const POSITION_TYPES: PositionType[] = [
   "ministro_ordenado",
   "ministro_certificado",
+  "ministro_certificado_pastor",
   "ministro_licenciado",
   "delegado_pastor",
   "president",
@@ -32,8 +33,9 @@ const POSITION_TYPES: PositionType[] = [
 const POSITION_TYPE_LABELS: Record<PositionType, string> = {
   ministro_ordenado:    "Ministro Ordenado",
   ministro_certificado: "Ministro Certificado",
+  ministro_certificado_pastor: "Ministro Certificado Pastor",
   ministro_licenciado:  "Ministro Licenciado",
-  delegado_pastor:      "Delegado Pastor",
+  delegado_pastor:      "Delegado",
   president:            "Presidente",
   vice_president:       "Vice Presidente",
   secretary:            "Secretario",

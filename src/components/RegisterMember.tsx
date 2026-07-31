@@ -17,7 +17,7 @@ const memberFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   email: z.string().trim().max(255, "Email must be less than 255 characters").email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().trim().max(20, "Phone must be less than 20 characters").optional().or(z.literal("")),
-  id_number: z.string().trim().min(1, "ID number is required").max(50, "ID must be less than 50 characters"),
+  id_number: z.string().trim().max(50, "ID must be less than 50 characters").optional().or(z.literal("")),
   position_id: z.string().uuid("Invalid position").optional().or(z.literal("")),
 });
 
@@ -128,7 +128,11 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
         id_number: existingMember.id_number || "",
         position_id: existingMember.position_id || "",
       });
-      toast.success("Member found! Review and submit to check-in.");
+      if (existingMember.is_active === false) {
+        toast.warning("Member found, but is marked inactive — will check in without voting rights.");
+      } else {
+        toast.success("Member found! Review and submit to check-in.");
+      }
     } else {
       toast.info("New member. Please complete the registration form.");
     }
@@ -153,14 +157,20 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
     setLoading(true);
 
     try {
-      // Check if member already exists
-      const { data: existingMember } = await supabase
-        .from("members")
-        .select("id")
-        .eq("id_number", validatedData.id_number)
-        .maybeSingle();
+      // Check if member already exists (skip lookup when no ID was given,
+      // otherwise the first ID-less registrant would match every later one)
+      const existingMember = validatedData.id_number
+        ? (
+            await supabase
+              .from("members")
+              .select("id, is_active")
+              .eq("id_number", validatedData.id_number)
+              .maybeSingle()
+          ).data
+        : null;
 
       let memberId = existingMember?.id;
+      let isActive = existingMember?.is_active ?? true;
 
       if (!existingMember) {
         // Create new member with validated data
@@ -170,7 +180,7 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
             name: validatedData.name,
             email: validatedData.email || null,
             phone: validatedData.phone || null,
-            id_number: validatedData.id_number,
+            id_number: validatedData.id_number || null,
             position_id: validatedData.position_id || null,
           })
           .select()
@@ -178,6 +188,9 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
 
         if (memberError) throw memberError;
         memberId = newMember.id;
+        isActive = newMember.is_active ?? true;
+      } else if (!isActive) {
+        toast.info("Miembro inactivo — se registrará su asistencia sin derecho a voto.");
       }
 
       // Check if already registered for this session
@@ -194,20 +207,23 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
         return;
       }
 
-      // Generar PIN único para votar
-      let voter_pin = generateVoterPin();
-      // Asegurar unicidad — reintentar si hay colisión
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const { data: existing } = await supabase
-          .from("attendance_records")
-          .select("id")
-          .eq("voter_pin", voter_pin)
-          .maybeSingle();
-        if (!existing) break;
+      // Miembros inactivos asisten pero no reciben PIN de voto
+      let voter_pin: string | null = null;
+      if (isActive) {
         voter_pin = generateVoterPin();
+        // Asegurar unicidad — reintentar si hay colisión
+        for (let attempt = 0; attempt < 5; attempt++) {
+          const { data: existing } = await supabase
+            .from("attendance_records")
+            .select("id")
+            .eq("voter_pin", voter_pin)
+            .maybeSingle();
+          if (!existing) break;
+          voter_pin = generateVoterPin();
+        }
       }
 
-      // Register attendance con PIN
+      // Register attendance (con PIN solo si el miembro está activo)
       const { error: attendanceError } = await supabase
         .from("attendance_records")
         .insert({
@@ -220,11 +236,27 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
 
       if (attendanceError) throw attendanceError;
 
-      setLastPin(voter_pin);
-      setLastMemberName(validatedData.name);
-      setPinCopied(false);
-      setPinDialogOpen(true);
       setFormData({ name: "", email: "", phone: "", id_number: "", position_id: "" });
+
+      if (voter_pin) {
+        if (validatedData.phone) {
+          // Best-effort: SMS delivery failures shouldn't block check-in
+          supabase.functions
+            .invoke("send-sms", {
+              body: {
+                to: validatedData.phone,
+                message: `Su PIN de registro para la asamblea es: ${voter_pin}. Guárdelo para votar.`,
+              },
+            })
+            .catch(() => {});
+        }
+        setLastPin(voter_pin);
+        setLastMemberName(validatedData.name);
+        setPinCopied(false);
+        setPinDialogOpen(true);
+      } else {
+        toast.success(`${validatedData.name} registrado/a sin derecho a voto (miembro inactivo).`);
+      }
       onSuccess();
     } catch (error) {
       const memberError = error as MemberError;
@@ -295,14 +327,13 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
         <CardContent className="pt-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="member-id">ID Number *</Label>
+              <Label htmlFor="member-id">ID Number</Label>
               <div className="flex gap-2">
                 <Input
                   id="member-id"
                   value={formData.id_number}
                   onChange={(e) => setFormData({ ...formData, id_number: e.target.value.slice(0, 50) })}
                   placeholder="Enter or scan ID number"
-                  required
                   maxLength={50}
                   className="flex-1"
                 />

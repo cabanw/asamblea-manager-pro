@@ -272,6 +272,7 @@ export type Database = {
         | "board_member"
         | "ministro_ordenado"
         | "ministro_certificado"
+        | "ministro_certificado_pastor"
         | "ministro_licenciado"
         | "delegado_pastor"
     }
@@ -411,6 +412,7 @@ export const Constants = {
         "board_member",
         "ministro_ordenado",
         "ministro_certificado",
+        "ministro_certificado_pastor",
         "ministro_licenciado",
         "delegado_pastor",
       ],

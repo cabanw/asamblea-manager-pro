@@ -4,17 +4,13 @@ import { MemberIdCard } from '../components/MemberIdCard';
 
 const RegistrationSuccess = () => {
   const location = useLocation();
-  const state = location.state as { name?: string; type?: string; position?: string; id_number?: string; voter_pin?: string } | null;
-
-  const positionMap: Record<string, string> = {
-    'president': 'Presidente',
-    'vice_president': 'Vicepresidente',
-    'secretary': 'Secretario/a',
-    'treasurer': 'Tesorero/a',
-    'board_member': 'Vocal',
-    'member': 'Miembro General',
-    'ministro_ordenado': 'Ministro Ordenado',
-  };
+  const state = location.state as {
+    name?: string;
+    id_number?: string;
+    positionName?: string;
+    voter_pin?: string;
+    is_active?: boolean;
+  } | null;
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 p-4">
@@ -28,17 +24,15 @@ const RegistrationSuccess = () => {
             {!state && <p className="text-zinc-500 text-sm mt-2">Puede cerrar esta ventana de forma segura.</p>}
           </CardContent>
         </Card>
-        
-        {state && state.id_number && (
+
+        {state && state.name && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150 fill-mode-both">
-            <MemberIdCard 
+            <MemberIdCard
               member={{
-                id_number: state.id_number,
-                name: state.name || "Invitado",
-                organization: state.type === 'guest' 
-                  ? 'Invitado' 
-                  : (state.position ? positionMap[state.position] : 'Miembro Activo')
-              }} 
+                id_number: state.id_number || '',
+                name: state.name,
+                organization: state.positionName || 'Invitado',
+              }}
             />
           </div>
         )}
@@ -59,8 +53,17 @@ const RegistrationSuccess = () => {
                 </div>
                 <div className="bg-blue-50 border-l-4 border-blue-500 p-3 rounded text-left text-sm text-blue-800 shadow-sm">
                   <p className="font-semibold mb-1">¡ATENCIÓN MIEMBRO!</p>
-                  <p>Guarde este número o tome una captura de pantalla. Es su llave de acceso única para votar en su teléfono durante la asamblea.</p>
+                  <p>Guarde este número o tome una captura de pantalla. Es su llave de acceso única para votar en su teléfono durante la asamblea. Se lo enviamos también por SMS.</p>
                 </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        {state && state.is_active === false && (
+          <div className="animate-in fade-in zoom-in duration-500 delay-300 fill-mode-both pt-4 w-full">
+            <Card className="border-l-4 border-amber-400 bg-amber-50">
+              <CardContent className="text-center py-4 text-amber-800 text-sm">
+                Su asistencia quedó registrada, pero su membresía figura inactiva en el sistema — no recibirá PIN de voto. Consulte con el personal de la asamblea si esto no es correcto.
               </CardContent>
             </Card>
           </div>

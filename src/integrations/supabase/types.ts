@@ -287,6 +287,7 @@ export type Database = {
           id_number: string | null
           is_active: boolean | null
           name: string
+          organization: string | null
           phone: string | null
           position_id: string | null
           updated_at: string | null
@@ -298,6 +299,7 @@ export type Database = {
           id_number?: string | null
           is_active?: boolean | null
           name: string
+          organization?: string | null
           phone?: string | null
           position_id?: string | null
           updated_at?: string | null
@@ -309,6 +311,7 @@ export type Database = {
           id_number?: string | null
           is_active?: boolean | null
           name?: string
+          organization?: string | null
           phone?: string | null
           position_id?: string | null
           updated_at?: string | null

@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Users, Plus, Search, Upload, Download, Edit, Trash2 } from "lucide-react";
+import { Users, Plus, Search, Upload, Download, Edit, Trash2, X } from "lucide-react";
 
 interface Position {
   id: string;
@@ -28,6 +28,7 @@ interface MemberRow {
   email: string | null;
   phone: string | null;
   position_id: string | null;
+  organization: string | null;
   is_active: boolean | null;
   position: { name: string } | null;
 }
@@ -38,6 +39,7 @@ interface ImportRow {
   email: string;
   phone: string;
   position: string;
+  organization: string;
   is_active: boolean;
 }
 
@@ -52,6 +54,7 @@ const memberFormSchema = z.object({
   email: z.string().trim().max(255, "Máximo 255 caracteres").email("Email inválido").optional().or(z.literal("")),
   phone: z.string().trim().max(20, "Máximo 20 caracteres").optional().or(z.literal("")),
   position_id: z.string().uuid("Posición inválida").optional().or(z.literal("")),
+  organization: z.string().trim().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
 });
 
 const emptyMemberForm = {
@@ -60,8 +63,12 @@ const emptyMemberForm = {
   email: "",
   phone: "",
   position_id: "",
+  organization: "",
   is_active: true,
 };
+
+const NO_FILTER = "all";
+const NO_POSITION_FILTER = "none";
 
 // Parser CSV manual: soporta campos entre comillas con comas internas
 const parseCSVLine = (line: string): string[] => {
@@ -123,6 +130,8 @@ const MemberManager = () => {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterOrganization, setFilterOrganization] = useState(NO_FILTER);
+  const [filterPosition, setFilterPosition] = useState(NO_FILTER);
 
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<MemberRow | null>(null);
@@ -143,13 +152,36 @@ const MemberManager = () => {
   useEffect(() => {
     const query = searchQuery.toLowerCase();
     setFilteredMembers(
-      members.filter(
-        (m) =>
+      members.filter((m) => {
+        const matchesSearch =
           m.name.toLowerCase().includes(query) ||
-          (m.id_number && m.id_number.toLowerCase().includes(query))
-      )
+          (m.id_number && m.id_number.toLowerCase().includes(query));
+        const matchesOrganization =
+          filterOrganization === NO_FILTER || (m.organization || "") === filterOrganization;
+        const matchesPosition =
+          filterPosition === NO_FILTER ||
+          (filterPosition === NO_POSITION_FILTER ? !m.position_id : m.position_id === filterPosition);
+        return matchesSearch && matchesOrganization && matchesPosition;
+      })
     );
-  }, [searchQuery, members]);
+  }, [searchQuery, filterOrganization, filterPosition, members]);
+
+  const organizationOptions = Array.from(
+    new Set(
+      members
+        .map((m) => m.organization)
+        .filter((o): o is string => !!o && o.trim() !== "")
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const hasActiveFilters =
+    searchQuery !== "" || filterOrganization !== NO_FILTER || filterPosition !== NO_FILTER;
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setFilterOrganization(NO_FILTER);
+    setFilterPosition(NO_FILTER);
+  };
 
   const loadMembers = async () => {
     setLoading(true);
@@ -207,6 +239,7 @@ const MemberManager = () => {
       email: member.email || "",
       phone: member.phone || "",
       position_id: member.position_id || "",
+      organization: member.organization || "",
       is_active: member.is_active ?? true,
     });
     setMemberDialogOpen(true);
@@ -229,6 +262,7 @@ const MemberManager = () => {
         email: data.email || null,
         phone: data.phone || null,
         position_id: data.position_id || null,
+        organization: data.organization || null,
         is_active: memberForm.is_active,
       };
 
@@ -269,8 +303,8 @@ const MemberManager = () => {
 
   const downloadTemplate = () => {
     const csv = [
-      "name,id_number,email,phone,position,is_active",
-      '"Juan Pérez","12345678","juan@example.com","+18095551234","Miembro","true"',
+      "name,id_number,email,phone,position,organization,is_active",
+      '"Juan Pérez","12345678","juan@example.com","+18095551234","Miembro","Casa de Dios Adulam","true"',
     ].join("\r\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -299,6 +333,7 @@ const MemberManager = () => {
           email: r.email || "",
           phone: r.phone || "",
           position: r.position || "",
+          organization: r.organization || "",
           is_active: parseIsActive(r.is_active || ""),
         }));
         setImportPreview(rows);
@@ -334,6 +369,7 @@ const MemberManager = () => {
           email: row.email.trim() || null,
           phone: row.phone.trim() || null,
           position_id: resolvePositionId(row.position),
+          organization: row.organization.trim() || null,
           is_active: row.is_active,
         };
       })
@@ -415,7 +451,7 @@ const MemberManager = () => {
                   <DialogHeader>
                     <DialogTitle>Importar Miembros desde CSV</DialogTitle>
                     <DialogDescription>
-                      Sube un archivo CSV con columnas: name, id_number, email, phone, position, is_active
+                      Sube un archivo CSV con columnas: name, id_number, email, phone, position, organization, is_active
                     </DialogDescription>
                   </DialogHeader>
 
@@ -441,6 +477,7 @@ const MemberManager = () => {
                                 <TableHead>Email</TableHead>
                                 <TableHead>Teléfono</TableHead>
                                 <TableHead>Posición</TableHead>
+                                <TableHead>Iglesia</TableHead>
                                 <TableHead>Activo</TableHead>
                               </TableRow>
                             </TableHeader>
@@ -452,6 +489,7 @@ const MemberManager = () => {
                                   <TableCell>{row.email}</TableCell>
                                   <TableCell>{row.phone}</TableCell>
                                   <TableCell>{row.position}</TableCell>
+                                  <TableCell>{row.organization}</TableCell>
                                   <TableCell>{row.is_active ? "Sí" : "No"}</TableCell>
                                 </TableRow>
                               ))}
@@ -559,6 +597,15 @@ const MemberManager = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="member-organization">Iglesia</Label>
+                      <Input
+                        id="member-organization"
+                        value={memberForm.organization}
+                        onChange={(e) => setMemberForm({ ...memberForm, organization: e.target.value.slice(0, 200) })}
+                        placeholder="Casa de Dios Adulam"
+                      />
+                    </div>
                     <div className="flex items-center justify-between">
                       <Label htmlFor="member-active">Activo</Label>
                       <Switch
@@ -582,8 +629,8 @@ const MemberManager = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4">
-            <div className="relative">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nombre o ID..."
@@ -592,7 +639,47 @@ const MemberManager = () => {
                 className="pl-10"
               />
             </div>
+
+            <Select value={filterOrganization} onValueChange={setFilterOrganization}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Iglesia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_FILTER}>Todas las iglesias</SelectItem>
+                {organizationOptions.map((org) => (
+                  <SelectItem key={org} value={org}>
+                    {org}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={filterPosition} onValueChange={setFilterPosition}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Posición" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_FILTER}>Todas las posiciones</SelectItem>
+                <SelectItem value={NO_POSITION_FILTER}>Sin posición</SelectItem>
+                {positions.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={handleClearFilters} className="gap-1">
+                <X className="h-4 w-4" />
+                Limpiar filtros
+              </Button>
+            )}
           </div>
+
+          <p className="text-sm text-muted-foreground mb-4">
+            Mostrando {filteredMembers.length} de {totalMembers} miembros
+          </p>
 
           <div className="overflow-x-auto">
             <Table>
@@ -601,6 +688,7 @@ const MemberManager = () => {
                   <TableHead>Nombre</TableHead>
                   <TableHead>ID Number</TableHead>
                   <TableHead>Posición</TableHead>
+                  <TableHead>Iglesia</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Teléfono</TableHead>
                   <TableHead>Activo</TableHead>
@@ -619,6 +707,7 @@ const MemberManager = () => {
                         "—"
                       )}
                     </TableCell>
+                    <TableCell>{member.organization || "—"}</TableCell>
                     <TableCell>{member.email || "—"}</TableCell>
                     <TableCell>{member.phone || "—"}</TableCell>
                     <TableCell>
@@ -670,7 +759,7 @@ const MemberManager = () => {
                 ))}
                 {filteredMembers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No se encontraron miembros
                     </TableCell>
                   </TableRow>

@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Register from "./pages/Register";
 import Attendance from "./pages/Attendance";
+import MemberManager from "./pages/MemberManager";
 import AdminReports from "./pages/AdminReports";
 import AdminSettings from "./pages/AdminSettings";
 import AdminElections from "./pages/AdminElections";
@@ -75,6 +76,16 @@ const App = () => (
                 <ProtectedRoute allowedRoles={['assembly_sergeant', 'admin']}>
                   <AppLayout>
                     <Attendance />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/members"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'assembly_sergeant', 'secretary']}>
+                  <AppLayout>
+                    <MemberManager />
                   </AppLayout>
                 </ProtectedRoute>
               }

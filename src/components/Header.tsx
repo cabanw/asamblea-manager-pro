@@ -1,14 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
-import { LogOut, Settings, FileText, Users, ClipboardList, Home, Vote } from 'lucide-react';
+import { LogOut, Settings, FileText, Users, ClipboardList, Home, Vote, UserCog } from 'lucide-react';
 import FiadahLogo from '@/assets/FIADAH_Logo.jpg';
 import { VOTING_ENABLED } from '@/lib/featureFlags';
 
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, signOut, isAdmin, isAssemblySergeant } = useAuth();
+  const { user, signOut, isAdmin, isAssemblySergeant, isSecretary } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -63,6 +63,18 @@ export const Header = () => {
               >
                 <ClipboardList className="h-4 w-4" />
                 <span className="hidden sm:inline">Asistencia</span>
+              </Button>
+            )}
+
+            {(isAdmin || isAssemblySergeant || isSecretary) && (
+              <Button
+                variant={isActive('/members') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/members')}
+                className="gap-2"
+              >
+                <UserCog className="h-4 w-4" />
+                <span className="hidden sm:inline">Miembros</span>
               </Button>
             )}
 

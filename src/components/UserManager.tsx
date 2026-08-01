@@ -12,7 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from 'sonner';
 import { Shield, User, Users, Plus, Trash2, Search, KeyRound } from 'lucide-react';
 
-type AppRole = 'user' | 'admin' | 'assembly_sergeant';
+type AppRole = 'user' | 'admin' | 'assembly_sergeant' | 'secretary';
 
 interface UserWithRole {
   id: string;
@@ -29,12 +29,14 @@ const ROLE_LABELS: Record<AppRole, string> = {
   user: 'Usuario',
   admin: 'Administrador',
   assembly_sergeant: 'Sargento de Armas',
+  secretary: 'Secretaria',
 };
 
 const ROLE_ICONS: Record<AppRole, React.ReactNode> = {
   user: <User className="h-3 w-3" />,
   admin: <Shield className="h-3 w-3" />,
   assembly_sergeant: <Users className="h-3 w-3" />,
+  secretary: <KeyRound className="h-3 w-3" />,
 };
 
 export const UserManager = () => {
@@ -275,6 +277,7 @@ export const UserManager = () => {
                     <SelectContent>
                       <SelectItem value="user">Usuario</SelectItem>
                       <SelectItem value="assembly_sergeant">Sargento de Armas</SelectItem>
+                      <SelectItem value="secretary">Secretaria</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>
@@ -340,6 +343,7 @@ export const UserManager = () => {
                     <SelectContent>
                       <SelectItem value="user">Usuario</SelectItem>
                       <SelectItem value="assembly_sergeant">Sargento de Armas</SelectItem>
+                      <SelectItem value="secretary">Secretaria</SelectItem>
                       <SelectItem value="admin">Administrador</SelectItem>
                     </SelectContent>
                   </Select>

@@ -532,7 +532,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "user" | "admin" | "assembly_sergeant"
+      app_role: "user" | "admin" | "assembly_sergeant" | "secretary"
       position_type:
         | "president"
         | "vice_president"
@@ -665,13 +665,13 @@ export type CompositeTypes<
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    ? DefaultSchema["CompositeTypes"][CompositeTypeName]
     : never
 
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["user", "admin", "assembly_sergeant"],
+      app_role: ["user", "admin", "assembly_sergeant", "secretary"],
       position_type: [
         "president",
         "vice_president",

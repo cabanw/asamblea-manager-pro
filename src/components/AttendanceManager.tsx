@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { UserCheck, UserX, Users, UserPlus } from "lucide-react";
+import { Users, UserPlus } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface AttendanceManagerProps {
@@ -62,24 +61,6 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
     }
   }, [sessionId, loadAttendees]);
 
-  const togglePresence = async (recordId: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from("attendance_records")
-      .update({
-        is_present: !currentStatus,
-        check_out_time: !currentStatus ? null : new Date().toISOString(),
-      })
-      .eq("id", recordId);
-
-    if (error) {
-      toast.error("Failed to update attendance");
-    } else {
-      toast.success(currentStatus ? "Marked as left" : "Marked as present");
-      loadAttendees();
-      onUpdate();
-    }
-  };
-
   const members = attendees.filter((a) => a.attendee_type === "member");
   const guests = attendees.filter((a) => a.attendee_type === "guest");
 
@@ -117,23 +98,6 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
                 </p>
               )}
             </div>
-            <Button
-              variant={attendee.is_present ? "destructive" : "default"}
-              size="sm"
-              onClick={() => togglePresence(attendee.id, attendee.is_present)}
-            >
-              {attendee.is_present ? (
-                <>
-                  <UserX className="h-4 w-4 mr-1" />
-                  Mark Left
-                </>
-              ) : (
-                <>
-                  <UserCheck className="h-4 w-4 mr-1" />
-                  Mark Present
-                </>
-              )}
-            </Button>
           </div>
         </CardContent>
       </Card>

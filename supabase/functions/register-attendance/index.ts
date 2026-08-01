@@ -10,6 +10,9 @@ const corsHeaders = {
 const generateVoterPin = (): string =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+// v2.0: votación desactivada para el evento en vivo. Cambiar a true para reactivar en v2.1.
+const VOTING_ENABLED = false;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -140,8 +143,9 @@ serve(async (req) => {
     }
 
     // Inactive members attend but don't get a voter PIN (no voting rights)
+    // With VOTING_ENABLED false, nobody gets a PIN during v2.0
     let voter_pin: string | null = null;
-    if (isActive) {
+    if (VOTING_ENABLED && isActive) {
       voter_pin = generateVoterPin();
       for (let attempt = 0; attempt < 5; attempt++) {
         const { data: existing } = await supabaseAdmin

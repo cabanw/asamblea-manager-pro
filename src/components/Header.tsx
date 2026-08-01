@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { LogOut, Settings, FileText, Users, ClipboardList, Home, Vote } from 'lucide-react';
 import FiadahLogo from '@/assets/FIADAH_Logo.jpg';
+import { VOTING_ENABLED } from '@/lib/featureFlags';
 
 export const Header = () => {
   const navigate = useNavigate();
@@ -65,27 +66,31 @@ export const Header = () => {
               </Button>
             )}
 
-            <Button
-              variant={isActive('/elections') ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => navigate('/elections')}
-              className="gap-2"
-            >
-              <Vote className="h-4 w-4" />
-              <span className="hidden sm:inline">Portal de Votos</span>
-            </Button>
+            {VOTING_ENABLED && (
+              <Button
+                variant={isActive('/elections') ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => navigate('/elections')}
+                className="gap-2"
+              >
+                <Vote className="h-4 w-4" />
+                <span className="hidden sm:inline">Portal de Votos</span>
+              </Button>
+            )}
 
             {isAdmin && (
               <>
-                <Button
-                  variant={isActive('/admin/elections') ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => navigate('/admin/elections')}
-                  className="gap-2"
-                >
-                  <Vote className="h-4 w-4" />
-                  <span className="hidden sm:inline">Elecciones</span>
-                </Button>
+                {VOTING_ENABLED && (
+                  <Button
+                    variant={isActive('/admin/elections') ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => navigate('/admin/elections')}
+                    className="gap-2"
+                  >
+                    <Vote className="h-4 w-4" />
+                    <span className="hidden sm:inline">Elecciones</span>
+                  </Button>
+                )}
 
                 <Button
                   variant={isActive('/admin/reports') ? 'default' : 'ghost'}

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { UserPlus, QrCode, KeyRound, Copy, CheckCircle2 } from "lucide-react";
 import { QRScanner } from "./QRScanner";
 import { verifyQRData } from "@/lib/security";
+import { VOTING_ENABLED } from "@/lib/featureFlags";
 
 // Validation schemas
 const memberFormSchema = z.object({
@@ -208,8 +209,9 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
       }
 
       // Miembros inactivos asisten pero no reciben PIN de voto
+      // (y con VOTING_ENABLED en false, nadie recibe PIN durante v2.0)
       let voter_pin: string | null = null;
-      if (isActive) {
+      if (VOTING_ENABLED && isActive) {
         voter_pin = generateVoterPin();
         // Asegurar unicidad — reintentar si hay colisión
         for (let attempt = 0; attempt < 5; attempt++) {
@@ -254,8 +256,10 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
         setLastMemberName(validatedData.name);
         setPinCopied(false);
         setPinDialogOpen(true);
-      } else {
+      } else if (VOTING_ENABLED && !isActive) {
         toast.success(`${validatedData.name} registrado/a sin derecho a voto (miembro inactivo).`);
+      } else {
+        toast.success(`${validatedData.name} registrado/a exitosamente.`);
       }
       onSuccess();
     } catch (error) {

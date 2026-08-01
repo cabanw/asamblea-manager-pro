@@ -37,12 +37,18 @@ const Register = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult] = await Promise.all([
-      supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
+    const [votingMembersResult, attendanceResult] = await Promise.all([
+      // Quórum estatutario: solo cuentan miembros activos con posición de derecho a voto
+      // (positions.quorum_weight = 1). position_id null queda excluido por el inner join.
+      supabase
+        .from('members')
+        .select('id, positions!inner(quorum_weight)')
+        .eq('is_active', true)
+        .eq('positions.quorum_weight', 1),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
     ]);
 
-    const totalMembers = membersResult.count || 0;
+    const totalMembers = votingMembersResult.data?.length || 0;
     const attendance = attendanceResult.data || [];
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;

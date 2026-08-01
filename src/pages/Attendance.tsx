@@ -45,6 +45,17 @@ const Attendance = () => {
         },
         () => loadStats(sessionId)
       )
+      .on(
+        // Recalcula totalMembers si alguien activa/desactiva un miembro o le
+        // cambia la posición durante el evento (afecta el denominador del quórum)
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'members',
+        },
+        () => loadStats(sessionId)
+      )
       .subscribe();
 
     return () => {
@@ -71,15 +82,22 @@ const Attendance = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [{ count: totalMembers = 0, error: membersError }, attendanceResult] = await Promise.all([
-      supabase.from('members').select('*', { count: 'exact', head: true }).eq('is_active', true),
+    const [votingMembersResult, attendanceResult] = await Promise.all([
+      // Quórum estatutario: solo cuentan miembros activos con posición de derecho a voto
+      // (positions.quorum_weight = 1). position_id null queda excluido por el inner join.
+      supabase
+        .from('members')
+        .select('id, positions!inner(quorum_weight)')
+        .eq('is_active', true)
+        .eq('positions.quorum_weight', 1),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
     ]);
 
-    if (membersError) {
-      console.error('Error counting members:', membersError);
+    if (votingMembersResult.error) {
+      console.error('Error counting members:', votingMembersResult.error);
       return;
     }
+    const totalMembers = votingMembersResult.data?.length || 0;
     if (attendanceResult.error) {
       console.error('Error loading attendance:', attendanceResult.error);
       return;

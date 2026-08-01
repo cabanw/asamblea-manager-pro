@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format, parseISO, differenceInMinutes } from 'date-fns';
+import { QUORUM_FRACTION } from '@/lib/quorum';
 
 interface AttendanceRecord {
   id: string;
@@ -43,7 +44,6 @@ interface CheckInBucket {
 }
 
 const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))'];
-const QUORUM_FRACTION = 2 / 3;
 
 interface MetricsDashboardProps {
   sessionId?: string;

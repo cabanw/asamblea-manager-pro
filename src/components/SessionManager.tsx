@@ -11,13 +11,14 @@ import { RegistrationLinkDialog } from '@/components/RegistrationLinkDialog';
 import { toast } from 'sonner';
 import { Plus, Play, Check, Trash2, X, Share2 } from 'lucide-react';
 import { format, startOfDay, isToday as isTodayFns, addHours } from 'date-fns';
+import { QUORUM_FRACTION } from '@/lib/quorum';
 
 interface Session {
   id: string;
   name: string;
   date: string;
   status: 'active' | 'closed';
-  quorum_required: number;
+  total_active_members: number | null;
   start_time: string | null;
   end_time: string | null;
 }
@@ -33,15 +34,24 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
   const [dialogOpen, setDialogOpen] = useState(false);
   const [registrationDialogOpen, setRegistrationDialogOpen] = useState(false);
   const [registrationLink, setRegistrationLink] = useState('');
+  const [activeMemberCount, setActiveMemberCount] = useState<number | null>(null);
   const [newSession, setNewSession] = useState({
     name: '',
     date: format(new Date(), 'yyyy-MM-dd'),
-    quorum_required: 50,
   });
 
   useEffect(() => {
     loadSessions();
   }, []);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    supabase
+      .from('members')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true)
+      .then(({ count }) => setActiveMemberCount(count ?? 0));
+  }, [dialogOpen]);
 
   const loadSessions = async () => {
     const { data, error } = await supabase
@@ -114,7 +124,6 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
       .insert({
         name: newSession.name,
         date: newSession.date,
-        quorum_required: newSession.quorum_required,
         status: 'active',
         start_time,
       })
@@ -128,7 +137,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
 
     toast.success('New assembly session created');
     setDialogOpen(false);
-    setNewSession({ name: '', date: format(new Date(), 'yyyy-MM-dd'), quorum_required: 50 });
+    setNewSession({ name: '', date: format(new Date(), 'yyyy-MM-dd') });
     loadSessions();
     onSessionChange(data.id);
   };
@@ -257,14 +266,12 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Quorum Required (%)</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={newSession.quorum_required}
-                    onChange={(e) => setNewSession({ ...newSession, quorum_required: parseInt(e.target.value) || 50 })}
-                  />
+                  <Label>Miembros Activos</Label>
+                  <p className="text-sm text-muted-foreground">
+                    {activeMemberCount === null
+                      ? 'Cargando...'
+                      : `${activeMemberCount} miembros activos — quórum requerido: ${Math.ceil(QUORUM_FRACTION * activeMemberCount)} (2/3, fijo por reglamento)`}
+                  </p>
                 </div>
                 <Button onClick={handleCreateSession} className="w-full">
                   Create Assembly
@@ -281,7 +288,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
               <TableHead>Name</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Quorum</TableHead>
+              <TableHead>Miembros Activos</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -303,7 +310,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                     {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
                   </Badge>
                 </TableCell>
-                <TableCell>{session.quorum_required}%</TableCell>
+                <TableCell>{session.total_active_members ?? '—'}</TableCell>
                 <TableCell className="flex gap-2">
                   {session.status === 'active' ? (
                     <>

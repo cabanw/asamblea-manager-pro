@@ -10,10 +10,83 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
+      assembly_attendance: {
+        Row: {
+          assembly_id: string
+          attended: boolean | null
+          attendee_type: string
+          created_at: string | null
+          full_name: string
+          id: string
+          position: string | null
+          voter_pin: string | null
+        }
+        Insert: {
+          assembly_id: string
+          attended?: boolean | null
+          attendee_type: string
+          created_at?: string | null
+          full_name: string
+          id?: string
+          position?: string | null
+          voter_pin?: string | null
+        }
+        Update: {
+          assembly_id?: string
+          attended?: boolean | null
+          attendee_type?: string
+          created_at?: string | null
+          full_name?: string
+          id?: string
+          position?: string | null
+          voter_pin?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assembly_attendance_assembly_id_fkey"
+            columns: ["assembly_id"]
+            isOneToOne: false
+            referencedRelation: "assembly_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assembly_registration_links: {
+        Row: {
+          assembly_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+        }
+        Insert: {
+          assembly_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          token?: string
+        }
+        Update: {
+          assembly_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assembly_registration_links_assembly_id_fkey"
+            columns: ["assembly_id"]
+            isOneToOne: false
+            referencedRelation: "assembly_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assembly_sessions: {
         Row: {
           created_at: string | null
@@ -24,6 +97,7 @@ export type Database = {
           quorum_required: number
           start_time: string | null
           status: string | null
+          total_active_members: number | null
         }
         Insert: {
           created_at?: string | null
@@ -34,6 +108,7 @@ export type Database = {
           quorum_required?: number
           start_time?: string | null
           status?: string | null
+          total_active_members?: number | null
         }
         Update: {
           created_at?: string | null
@@ -44,6 +119,7 @@ export type Database = {
           quorum_required?: number
           start_time?: string | null
           status?: string | null
+          total_active_members?: number | null
         }
         Relationships: []
       }
@@ -58,6 +134,7 @@ export type Database = {
           is_present: boolean | null
           member_id: string | null
           session_id: string
+          voter_pin: string | null
         }
         Insert: {
           attendee_type: string
@@ -69,6 +146,7 @@ export type Database = {
           is_present?: boolean | null
           member_id?: string | null
           session_id: string
+          voter_pin?: string | null
         }
         Update: {
           attendee_type?: string
@@ -80,6 +158,7 @@ export type Database = {
           is_present?: boolean | null
           member_id?: string | null
           session_id?: string
+          voter_pin?: string | null
         }
         Relationships: [
           {
@@ -104,6 +183,71 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      candidates: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          election_id: string
+          id: string
+          image_url: string | null
+          name: string
+          position: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          election_id: string
+          id?: string
+          image_url?: string | null
+          name: string
+          position: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          election_id?: string
+          id?: string
+          image_url?: string | null
+          name?: string
+          position?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidates_election_id_fkey"
+            columns: ["election_id"]
+            isOneToOne: false
+            referencedRelation: "elections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      elections: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       guests: {
         Row: {
@@ -179,6 +323,81 @@ export type Database = {
           },
         ]
       }
+      nominations: {
+        Row: {
+          candidate_name: string
+          created_at: string | null
+          election_id: string
+          id: string
+          nominator_pin: string
+          position: string
+        }
+        Insert: {
+          candidate_name: string
+          created_at?: string | null
+          election_id: string
+          id?: string
+          nominator_pin: string
+          position: string
+        }
+        Update: {
+          candidate_name?: string
+          created_at?: string | null
+          election_id?: string
+          id?: string
+          nominator_pin?: string
+          position?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nominations_election_id_fkey"
+            columns: ["election_id"]
+            isOneToOne: false
+            referencedRelation: "elections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nominations_nominator_pin_fkey"
+            columns: ["nominator_pin"]
+            isOneToOne: false
+            referencedRelation: "assembly_attendance"
+            referencedColumns: ["voter_pin"]
+          },
+        ]
+      }
+      performance_logs: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json | null
+          metric_name: string
+          metric_type: string
+          rating: string | null
+          recorded_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_name: string
+          metric_type: string
+          rating?: string | null
+          recorded_at?: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_name?: string
+          metric_type?: string
+          rating?: string | null
+          recorded_at?: string
+          value?: number
+        }
+        Relationships: []
+      }
       positions: {
         Row: {
           created_at: string | null
@@ -248,11 +467,62 @@ export type Database = {
         }
         Relationships: []
       }
+      votes: {
+        Row: {
+          candidate_id: string
+          created_at: string | null
+          election_id: string
+          id: string
+          position_voted: string
+          voter_id: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string | null
+          election_id: string
+          id?: string
+          position_voted: string
+          voter_id: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string | null
+          election_id?: string
+          id?: string
+          position_voted?: string
+          voter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "votes_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_election_id_fkey"
+            columns: ["election_id"]
+            isOneToOne: false
+            referencedRelation: "elections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_election_results: {
+        Args: { p_election_id: string }
+        Returns: {
+          candidate_id: string
+          candidate_name: string
+          candidate_position: string
+          vote_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -272,7 +542,6 @@ export type Database = {
         | "board_member"
         | "ministro_ordenado"
         | "ministro_certificado"
-        | "ministro_certificado_pastor"
         | "ministro_licenciado"
         | "delegado_pastor"
     }
@@ -412,7 +681,6 @@ export const Constants = {
         "board_member",
         "ministro_ordenado",
         "ministro_certificado",
-        "ministro_certificado_pastor",
         "ministro_licenciado",
         "delegado_pastor",
       ],

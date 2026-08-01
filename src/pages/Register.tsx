@@ -6,6 +6,7 @@ import { QuorumStatus } from '@/components/QuorumStatus';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, UserPlus } from 'lucide-react';
+import { QUORUM_FRACTION } from '@/lib/quorum';
 
 const Register = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
@@ -14,7 +15,7 @@ const Register = () => {
     presentMembers: 0,
     totalGuests: 0,
     presentGuests: 0,
-    quorumRequired: 50,
+    quorumRequired: QUORUM_FRACTION * 100,
     quorumAchieved: false,
   });
 
@@ -36,26 +37,24 @@ const Register = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult, sessionResult] = await Promise.all([
+    const [membersResult, attendanceResult] = await Promise.all([
       supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
-      supabase.from('assembly_sessions').select('quorum_required').eq('id', sessId).single(),
     ]);
 
     const totalMembers = membersResult.count || 0;
     const attendance = attendanceResult.data || [];
     const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
     const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    const quorumRequired = sessionResult.data?.quorum_required || 50;
-    const quorumPercentage = totalMembers > 0 ? (presentMembers / totalMembers) * 100 : 0;
+    const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * totalMembers);
 
     setStats({
       totalMembers,
       presentMembers,
       totalGuests: presentGuests,
       presentGuests,
-      quorumRequired,
-      quorumAchieved: quorumPercentage >= quorumRequired,
+      quorumRequired: QUORUM_FRACTION * 100,
+      quorumAchieved: totalMembers > 0 && presentMembers >= membersNeededForQuorum,
     });
   };
 

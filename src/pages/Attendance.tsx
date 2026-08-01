@@ -5,6 +5,7 @@ import { AttendanceManager } from '@/components/AttendanceManager';
 import { QuorumStatus } from '@/components/QuorumStatus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, UserPlus } from 'lucide-react';
+import { QUORUM_FRACTION } from '@/lib/quorum';
 
 type AttendanceRow = {
   id: string;
@@ -12,8 +13,6 @@ type AttendanceRow = {
   attendee_type: 'member' | 'guest';
   is_present: boolean;
 };
-
-const QUORUM_FRACTION = 2 / 3;
 
 const Attendance = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();

@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { FileText, Download } from "lucide-react";
 import { toast } from "sonner";
+import { QUORUM_FRACTION } from "@/lib/quorum";
 
 interface ReportsSectionProps {
   sessionId: string | undefined;
@@ -22,7 +23,7 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
     toast.info(`${format.toUpperCase()} report generation will be implemented with a backend service`);
   };
 
-  const membersNeededForQuorum = Math.ceil((2 / 3) * stats.totalMembers);
+  const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * stats.totalMembers);
   const membersNeeded = Math.max(0, membersNeededForQuorum - stats.presentMembers);
 
   return (

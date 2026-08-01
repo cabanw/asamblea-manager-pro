@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { QUORUM_FRACTION } from "@/lib/quorum";
 
 interface QuorumStatusProps {
   presentMembers: number;
@@ -18,7 +19,7 @@ export const QuorumStatus = ({
 }: QuorumStatusProps) => {
   const percentage = totalMembers > 0 ? (presentMembers / totalMembers) * 100 : 0;
   // Quorum requires 2/3 of active members
-  const membersNeededForQuorum = Math.ceil((2 / 3) * totalMembers);
+  const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * totalMembers);
   const membersNeeded = Math.max(0, membersNeededForQuorum - presentMembers);
 
   return (
@@ -76,7 +77,7 @@ export const QuorumStatus = ({
           />
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>0%</span>
-            <span className="font-medium">Requerido: 2/3 (66.67%)</span>
+            <span className="font-medium">Requerido: 2/3 ({Math.round(QUORUM_FRACTION * 100)}%)</span>
             <span>100%</span>
           </div>
         </div>

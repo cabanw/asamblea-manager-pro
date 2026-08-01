@@ -18,13 +18,165 @@ interface Stats {
 }
 
 export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
-  const generateReport = (format: "pdf" | "excel") => {
-    // This is a placeholder - actual implementation would require a backend service
-    toast.info(`${format.toUpperCase()} report generation will be implemented with a backend service`);
-  };
-
   const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * stats.totalMembers);
   const membersNeeded = Math.max(0, membersNeededForQuorum - stats.presentMembers);
+  const quorumPercentage = stats.totalMembers > 0
+    ? ((stats.presentMembers / stats.totalMembers) * 100).toFixed(2)
+    : "0.00";
+
+  const generatePDFReport = () => {
+    try {
+      if (!sessionId) {
+        toast.error("No active session");
+        return;
+      }
+
+      const printWindow = window.open("", "", "height=600,width=800");
+      if (!printWindow) {
+        toast.error("Por favor habilita pop-ups para generar PDF");
+        return;
+      }
+
+      const now = new Date().toLocaleString('es-ES');
+      const quorumColor = stats.quorumAchieved ? "#16a34a" : "#ca8a04";
+      const quorumBg = stats.quorumAchieved ? "#f0fdf4" : "#fefce8";
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Reporte de Asamblea General</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 32px; color: #1f2937; }
+            h1 { font-size: 22px; margin-bottom: 4px; }
+            h2 { font-size: 14px; font-weight: normal; color: #6b7280; margin-top: 0; }
+            .meta { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+            .stat-box { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; text-align: center; }
+            .stat-box .label { font-size: 11px; color: #6b7280; }
+            .stat-box .value { font-size: 22px; font-weight: bold; }
+            .quorum-block { border-radius: 8px; padding: 16px; margin-bottom: 24px; background: ${quorumBg}; border: 1px solid ${quorumColor}; }
+            .quorum-block .status { color: ${quorumColor}; font-weight: bold; font-size: 16px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+            th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; font-size: 13px; }
+            th { background: #f9fafb; }
+            footer { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 32px; }
+            @media print {
+              body { padding: 12px; }
+              .stat-box, .quorum-block, table { break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>🏛️ Reporte de Asamblea General</h1>
+          <h2>Casa de Dios Adulam (FIADAH)</h2>
+          <div class="meta">Generado: ${now} | Sesión: ${sessionId}</div>
+
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="label">Miembros Totales</div>
+              <div class="value">${stats.totalMembers}</div>
+            </div>
+            <div class="stat-box">
+              <div class="label">Miembros Presentes</div>
+              <div class="value">${stats.presentMembers}</div>
+            </div>
+            <div class="stat-box">
+              <div class="label">Total Invitados</div>
+              <div class="value">${stats.totalGuests}</div>
+            </div>
+            <div class="stat-box">
+              <div class="label">Invitados Presentes</div>
+              <div class="value">${stats.presentGuests}</div>
+            </div>
+          </div>
+
+          <div class="quorum-block">
+            <div class="status">${stats.quorumAchieved ? "✓ Quórum Alcanzado" : "✗ Quórum No Alcanzado"}</div>
+            <div>Umbral requerido: ${membersNeededForQuorum} miembros (2/3)</div>
+            <div>Presentes: ${stats.presentMembers} de ${stats.totalMembers} (${quorumPercentage}%)</div>
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Métrica</th><th>Valor</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Miembros Totales</td><td>${stats.totalMembers}</td></tr>
+              <tr><td>Miembros Presentes</td><td>${stats.presentMembers}</td></tr>
+              <tr><td>Total Invitados</td><td>${stats.totalGuests}</td></tr>
+              <tr><td>Invitados Presentes</td><td>${stats.presentGuests}</td></tr>
+              <tr><td>Umbral de Quórum (2/3)</td><td>${membersNeededForQuorum}</td></tr>
+              <tr><td>Porcentaje de Asistencia</td><td>${quorumPercentage}%</td></tr>
+              <tr><td>Estado de Quórum</td><td>${stats.quorumAchieved ? "ALCANZADO" : "NO ALCANZADO"}</td></tr>
+            </tbody>
+          </table>
+
+          <footer>Generado por Asamblea Manager Pro v2.0 | Desarrollado por Wilfredo Caban - WC Developer</footer>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+
+      toast.success("Usa 'Guardar como PDF' en la ventana de print");
+    } catch (error) {
+      toast.error("Error al generar el reporte PDF");
+    }
+  };
+
+  const generateExcelReport = () => {
+    try {
+      if (!sessionId) {
+        toast.error("No active session");
+        return;
+      }
+
+      const now = new Date().toLocaleString('es-ES');
+      const rows: string[][] = [
+        ["Reporte de Asamblea General"],
+        [`Generado: ${now}`],
+        [`Sesión: ${sessionId}`],
+        [],
+        ["RESUMEN DE SESIÓN"],
+        ["Miembros Totales", String(stats.totalMembers)],
+        ["Miembros Presentes", String(stats.presentMembers)],
+        ["Total Invitados", String(stats.totalGuests)],
+        ["Invitados Presentes", String(stats.presentGuests)],
+        [],
+        ["ANÁLISIS DE QUÓRUM"],
+        ["Umbral requerido (2/3)", String(membersNeededForQuorum)],
+        ["Presentes", String(stats.presentMembers)],
+        ["Porcentaje de Asistencia", `${quorumPercentage}%`],
+        ["Estado", stats.quorumAchieved ? "ALCANZADO" : "NO ALCANZADO"],
+        [],
+        ["Generado por Asamblea Manager Pro v2.0 | Desarrollado por Wilfredo Caban - WC Developer"],
+      ];
+
+      const csv = rows
+        .map((row) => row.map((cell) => `"${cell}"`).join(","))
+        .join("\r\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `reporte-asamblea-${sessionId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success("Reporte Excel descargado");
+    } catch (error) {
+      toast.error("Error al generar el reporte Excel");
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -85,7 +237,7 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
             <Button
               className="w-full"
               variant="default"
-              onClick={() => generateReport("pdf")}
+              onClick={generatePDFReport}
               disabled={!sessionId}
             >
               <FileText className="mr-2 h-4 w-4" />
@@ -95,7 +247,7 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
             <Button
               className="w-full"
               variant="secondary"
-              onClick={() => generateReport("excel")}
+              onClick={generateExcelReport}
               disabled={!sessionId}
             >
               <Download className="mr-2 h-4 w-4" />
@@ -108,11 +260,11 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
               Reports will include:
             </p>
             <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-              <li>• Complete attendance list</li>
-              <li>• Member positions breakdown</li>
-              <li>• Guest information</li>
-              <li>• Quorum calculation details</li>
-              <li>• Check-in/out timestamps</li>
+              <li>• Session attendance summary</li>
+              <li>• Member and guest counts</li>
+              <li>• Quorum calculation and threshold</li>
+              <li>• Attendance percentage</li>
+              <li>• Generation timestamp</li>
             </ul>
           </div>
         </CardContent>

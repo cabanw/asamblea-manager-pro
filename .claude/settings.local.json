@@ -17,7 +17,8 @@
       "mcp__claude_ai_Supabase__execute_sql",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(node check_db.mjs)"
+      "Bash(node check_db.mjs)",
+      "Bash(git push *)"
     ]
   }
 }

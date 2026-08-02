@@ -82,6 +82,31 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
     }
   }, [sessionId, loadAttendees]);
 
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // Sin esto, cambios hechos desde otras secciones (p.ej. "Marcar Presente"
+    // al volver de "Fuera de la Sala" en Attendance.tsx) no se reflejaban aquí
+    // hasta recargar la página.
+    const channel = supabase
+      .channel(`attendance-manager-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'attendance_records',
+          filter: `session_id=eq.${sessionId}`,
+        },
+        () => loadAttendees()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId, loadAttendees]);
+
   const members = attendees.filter((a) => a.attendee_type === "member");
   const guests = attendees.filter((a) => a.attendee_type === "guest");
 

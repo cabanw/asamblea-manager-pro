@@ -27,6 +27,8 @@ git clone <URL_DEL_REPO>
 cd asamblea-manager-pro
 npm install
 npm run dev
+npm run lint
+npm test
 ```
 
 ## Build y despliegue
@@ -41,3 +43,9 @@ firebase deploy --only hosting
 ## Base de datos
 
 Las migraciones viven en `supabase/migrations/`. Aplicar cambios de esquema vía Supabase CLI o MCP (`apply_migration`), manteniendo el historial de migraciones sincronizado con el proyecto remoto.
+
+## Developer
+
+**Wilfredo Caban Velez**
+GitHub: [github.com/cabanw](https://github.com/cabanw)
+Email: wilfredo.caban@icloud.com · wilie607@gmail.com

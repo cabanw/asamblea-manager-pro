@@ -143,6 +143,7 @@ const MemberManager = () => {
   const [importPreview, setImportPreview] = useState<ImportRow[]>([]);
   const [importResult, setImportResult] = useState<{ succeeded: number; total: number; errors: ImportError[] } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [votingMembersCount, setVotingMembersCount] = useState(0);
 
   useEffect(() => {
     loadMembers();
@@ -185,10 +186,19 @@ const MemberManager = () => {
 
   const loadMembers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("members")
-      .select("*, position:positions(name)")
-      .order("name");
+    const [{ data, error }, votingMembersResult] = await Promise.all([
+      supabase
+        .from("members")
+        .select("*, position:positions(name)")
+        .order("name"),
+      // Quórum estatutario: solo cuentan miembros activos con posición de derecho a voto
+      // (positions.quorum_weight = 1). position_id null queda excluido por el inner join.
+      supabase
+        .from("members")
+        .select("id, positions!inner(quorum_weight)")
+        .eq("is_active", true)
+        .eq("positions.quorum_weight", 1),
+    ]);
 
     if (error) {
       toast.error("Error al cargar la matrícula de miembros");
@@ -197,6 +207,7 @@ const MemberManager = () => {
     }
 
     setMembers((data as unknown as MemberRow[]) || []);
+    setVotingMembersCount(votingMembersResult.data?.length || 0);
     setLoading(false);
   };
 
@@ -207,7 +218,7 @@ const MemberManager = () => {
 
   const totalMembers = members.length;
   const activeMembers = members.filter((m) => m.is_active).length;
-  const quorumThreshold = Math.ceil(QUORUM_FRACTION * activeMembers);
+  const quorumThreshold = Math.ceil(QUORUM_FRACTION * votingMembersCount);
 
   const handleToggleActive = async (member: MemberRow) => {
     const newValue = !member.is_active;

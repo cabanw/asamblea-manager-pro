@@ -270,6 +270,16 @@ const Attendance = () => {
         </Card>
       </div>
 
+      <AttendanceManager
+        sessionId={sessionId}
+        onUpdate={() => {
+          if (sessionId) {
+            loadStats(sessionId);
+            loadRosterStatus(sessionId);
+          }
+        }}
+      />
+
       {leftMembers.length > 0 && (
         <Card className="shadow-lg border-warning/50">
           <CardHeader>
@@ -343,16 +353,6 @@ const Attendance = () => {
           )}
         </CardContent>
       </Card>
-
-      <AttendanceManager
-        sessionId={sessionId}
-        onUpdate={() => {
-          if (sessionId) {
-            loadStats(sessionId);
-            loadRosterStatus(sessionId);
-          }
-        }}
-      />
     </div>
   );
 };

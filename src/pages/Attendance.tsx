@@ -3,9 +3,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AttendanceManager } from '@/components/AttendanceManager';
 import { QuorumStatus } from '@/components/QuorumStatus';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Users, UserPlus } from 'lucide-react';
 import { QUORUM_FRACTION } from '@/lib/quorum';
+import { toast } from 'sonner';
+
+interface RosterMember {
+  id: string;
+  name: string;
+  position: string | null;
+}
 
 type AttendanceRow = {
   id: string;
@@ -25,6 +33,8 @@ const Attendance = () => {
     // optional: membersNeededForQuorum to show in UI
     membersNeededForQuorum: 0,
   });
+  const [notPresentMembers, setNotPresentMembers] = useState<RosterMember[]>([]);
+  const [markingPresent, setMarkingPresent] = useState<string | null>(null);
 
   useEffect(() => {
     loadActiveSession();
@@ -43,7 +53,10 @@ const Attendance = () => {
           table: 'attendance_records',
           filter: `session_id=eq.${sessionId}`,
         },
-        () => loadStats(sessionId)
+        () => {
+          loadStats(sessionId);
+          loadRosterStatus(sessionId);
+        }
       )
       .on(
         // Recalcula totalMembers si alguien activa/desactiva un miembro o le
@@ -54,7 +67,10 @@ const Attendance = () => {
           schema: 'public',
           table: 'members',
         },
-        () => loadStats(sessionId)
+        () => {
+          loadStats(sessionId);
+          loadRosterStatus(sessionId);
+        }
       )
       .subscribe();
 
@@ -78,7 +94,64 @@ const Attendance = () => {
     if (existingSession) {
       setSessionId(existingSession.id);
       loadStats(existingSession.id);
+      loadRosterStatus(existingSession.id);
     }
+  };
+
+  const loadRosterStatus = async (sessId: string) => {
+    const [rosterResult, presentResult] = await Promise.all([
+      supabase
+        .from('members')
+        .select('id, name, positions(name)')
+        .eq('is_active', true)
+        .order('name'),
+      supabase
+        .from('attendance_records')
+        .select('member_id')
+        .eq('session_id', sessId)
+        .eq('attendee_type', 'member')
+        .eq('is_present', true),
+    ]);
+
+    if (rosterResult.error || presentResult.error) {
+      console.error('Error loading roster status:', rosterResult.error || presentResult.error);
+      return;
+    }
+
+    const presentIds = new Set((presentResult.data || []).map((r) => r.member_id));
+    const roster = (rosterResult.data || [])
+      .filter((m) => !presentIds.has(m.id))
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        position: (m as unknown as { positions: { name: string } | null }).positions?.name || null,
+      }));
+
+    setNotPresentMembers(roster);
+  };
+
+  const handleMarkPresent = async (memberId: string) => {
+    if (!sessionId) return;
+    setMarkingPresent(memberId);
+
+    const { error } = await supabase.from('attendance_records').insert({
+      session_id: sessionId,
+      attendee_type: 'member',
+      member_id: memberId,
+      is_present: true,
+      voter_pin: null,
+    });
+
+    if (error) {
+      toast.error('Error al marcar presente');
+      setMarkingPresent(null);
+      return;
+    }
+
+    toast.success('Miembro marcado presente');
+    loadStats(sessionId);
+    loadRosterStatus(sessionId);
+    setMarkingPresent(null);
   };
 
   const loadStats = async (sessId: string) => {
@@ -159,10 +232,52 @@ const Attendance = () => {
         </Card>
       </div>
 
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>Miembros por Registrar ({notPresentMembers.length})</CardTitle>
+          <CardDescription>
+            Miembros activos que aún no han hecho check-in en esta sesión — marca presente sin llenar el formulario completo
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {notPresentMembers.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Todos los miembros activos ya están presentes
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {notPresentMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between p-3 rounded-lg border"
+                >
+                  <div>
+                    <p className="font-medium">{member.name}</p>
+                    {member.position && (
+                      <p className="text-xs text-muted-foreground">{member.position}</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleMarkPresent(member.id)}
+                    disabled={markingPresent === member.id}
+                  >
+                    {markingPresent === member.id ? 'Marcando...' : 'Marcar Presente'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <AttendanceManager
         sessionId={sessionId}
         onUpdate={() => {
-          if (sessionId) loadStats(sessionId);
+          if (sessionId) {
+            loadStats(sessionId);
+            loadRosterStatus(sessionId);
+          }
         }}
       />
     </div>

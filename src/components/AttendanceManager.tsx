@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Users, UserPlus } from "lucide-react";
@@ -32,6 +33,26 @@ interface Attendee {
 export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProps) => {
   const [attendees, setAttendees] = useState<Attendee[]>([]);
   const [loading, setLoading] = useState(false);
+  const [markingLeft, setMarkingLeft] = useState<string | null>(null);
+
+  const handleMarkLeft = async (attendanceId: string) => {
+    setMarkingLeft(attendanceId);
+    const { error } = await supabase
+      .from("attendance_records")
+      .update({ is_present: false, check_out_time: new Date().toISOString() })
+      .eq("id", attendanceId);
+
+    if (error) {
+      toast.error("Error al marcar salida");
+      setMarkingLeft(null);
+      return;
+    }
+
+    toast.success("Miembro marcado como fuera de la sala — afecta el quórum");
+    await loadAttendees();
+    onUpdate();
+    setMarkingLeft(null);
+  };
 
   const loadAttendees = useCallback(async () => {
     if (!sessionId) return;
@@ -74,7 +95,7 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
     return (
       <Card className="shadow-sm hover:shadow-md transition-shadow">
         <CardContent className="p-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <h4 className="font-semibold">{name}</h4>
@@ -98,6 +119,16 @@ export const AttendanceManager = ({ sessionId, onUpdate }: AttendanceManagerProp
                 </p>
               )}
             </div>
+            {!isGuest && attendee.is_present && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleMarkLeft(attendee.id)}
+                disabled={markingLeft === attendee.id}
+              >
+                {markingLeft === attendee.id ? "Marcando..." : "Marcar Salió"}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

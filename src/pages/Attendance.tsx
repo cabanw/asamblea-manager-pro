@@ -15,6 +15,10 @@ interface RosterMember {
   position: string | null;
 }
 
+interface LeftMember extends RosterMember {
+  attendanceId: string;
+}
+
 type AttendanceRow = {
   id: string;
   session_id: string;
@@ -34,6 +38,7 @@ const Attendance = () => {
     membersNeededForQuorum: 0,
   });
   const [notPresentMembers, setNotPresentMembers] = useState<RosterMember[]>([]);
+  const [leftMembers, setLeftMembers] = useState<LeftMember[]>([]);
   const [markingPresent, setMarkingPresent] = useState<string | null>(null);
 
   useEffect(() => {
@@ -99,35 +104,47 @@ const Attendance = () => {
   };
 
   const loadRosterStatus = async (sessId: string) => {
-    const [rosterResult, presentResult] = await Promise.all([
+    const [rosterResult, attendanceResult] = await Promise.all([
       supabase
         .from('members')
         .select('id, name, positions(name)')
         .eq('is_active', true)
         .order('name'),
+      // Todos los registros de asistencia de esta sesión (no solo los presentes)
+      // para distinguir "nunca hizo check-in" de "hizo check-in y salió".
       supabase
         .from('attendance_records')
-        .select('member_id')
+        .select('id, member_id, is_present')
         .eq('session_id', sessId)
-        .eq('attendee_type', 'member')
-        .eq('is_present', true),
+        .eq('attendee_type', 'member'),
     ]);
 
-    if (rosterResult.error || presentResult.error) {
-      console.error('Error loading roster status:', rosterResult.error || presentResult.error);
+    if (rosterResult.error || attendanceResult.error) {
+      console.error('Error loading roster status:', rosterResult.error || attendanceResult.error);
       return;
     }
 
-    const presentIds = new Set((presentResult.data || []).map((r) => r.member_id));
-    const roster = (rosterResult.data || [])
-      .filter((m) => !presentIds.has(m.id))
-      .map((m) => ({
-        id: m.id,
-        name: m.name,
-        position: (m as unknown as { positions: { name: string } | null }).positions?.name || null,
-      }));
+    const attendanceByMember = new Map(
+      (attendanceResult.data || []).map((r) => [r.member_id, r])
+    );
 
-    setNotPresentMembers(roster);
+    const roster = rosterResult.data || [];
+    const notPresent: RosterMember[] = [];
+    const left: LeftMember[] = [];
+
+    for (const m of roster) {
+      const record = attendanceByMember.get(m.id);
+      const position = (m as unknown as { positions: { name: string } | null }).positions?.name || null;
+
+      if (!record) {
+        notPresent.push({ id: m.id, name: m.name, position });
+      } else if (!record.is_present) {
+        left.push({ id: m.id, name: m.name, position, attendanceId: record.id });
+      }
+    }
+
+    setNotPresentMembers(notPresent);
+    setLeftMembers(left);
   };
 
   const handleMarkPresent = async (memberId: string) => {
@@ -149,6 +166,27 @@ const Attendance = () => {
     }
 
     toast.success('Miembro marcado presente');
+    loadStats(sessionId);
+    loadRosterStatus(sessionId);
+    setMarkingPresent(null);
+  };
+
+  const handleReturnToRoom = async (attendanceId: string) => {
+    if (!sessionId) return;
+    setMarkingPresent(attendanceId);
+
+    const { error } = await supabase
+      .from('attendance_records')
+      .update({ is_present: true, check_out_time: null })
+      .eq('id', attendanceId);
+
+    if (error) {
+      toast.error('Error al marcar presente');
+      setMarkingPresent(null);
+      return;
+    }
+
+    toast.success('Miembro de vuelta en la sala');
     loadStats(sessionId);
     loadRosterStatus(sessionId);
     setMarkingPresent(null);
@@ -231,6 +269,41 @@ const Attendance = () => {
           </CardContent>
         </Card>
       </div>
+
+      {leftMembers.length > 0 && (
+        <Card className="shadow-lg border-warning/50">
+          <CardHeader>
+            <CardTitle>Fuera de la Sala ({leftMembers.length})</CardTitle>
+            <CardDescription>
+              Salieron temporalmente (baño, llamada, etc.) — no cuentan como presentes para el quórum hasta que vuelvan
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {leftMembers.map((member) => (
+                <div
+                  key={member.id}
+                  className="flex items-center justify-between p-3 rounded-lg border"
+                >
+                  <div>
+                    <p className="font-medium">{member.name}</p>
+                    {member.position && (
+                      <p className="text-xs text-muted-foreground">{member.position}</p>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleReturnToRoom(member.attendanceId)}
+                    disabled={markingPresent === member.attendanceId}
+                  >
+                    {markingPresent === member.attendanceId ? 'Marcando...' : 'Marcar Presente'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="shadow-lg">
         <CardHeader>

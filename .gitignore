@@ -38,3 +38,6 @@ bun.lockb
 
 # Ad-hoc debug scripts
 check_db.mjs
+
+# Local manual/notes
+Manual/

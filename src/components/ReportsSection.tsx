@@ -3,10 +3,18 @@ import { Button } from "@/components/ui/button";
 import { FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { QUORUM_FRACTION } from "@/lib/quorum";
+import FiadahLogo from "@/assets/FIADAH_Logo.jpg";
+
+interface AttendeeRow {
+  name: string;
+  type: 'Miembro' | 'Invitado';
+  position: string | null;
+}
 
 interface ReportsSectionProps {
   sessionId: string | undefined;
   stats: Stats;
+  attendeeList: AttendeeRow[];
 }
 
 interface Stats {
@@ -17,7 +25,7 @@ interface Stats {
   quorumAchieved: boolean;
 }
 
-export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
+export const ReportsSection = ({ sessionId, stats, attendeeList }: ReportsSectionProps) => {
   const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * stats.totalMembers);
   const membersNeeded = Math.max(0, membersNeededForQuorum - stats.presentMembers);
   const quorumPercentage = stats.totalMembers > 0
@@ -49,6 +57,8 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
           <title>Reporte de Asamblea General</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 32px; color: #1f2937; }
+            .header { display: flex; align-items: center; gap: 16px; margin-bottom: 4px; }
+            .header img { height: 56px; width: auto; }
             h1 { font-size: 22px; margin-bottom: 4px; }
             h2 { font-size: 14px; font-weight: normal; color: #6b7280; margin-top: 0; }
             .meta { font-size: 12px; color: #6b7280; margin-bottom: 24px; }
@@ -69,8 +79,13 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
           </style>
         </head>
         <body>
-          <h1>🏛️ Reporte de Asamblea General</h1>
-          <h2>Casa de Dios Adulam (FIADAH)</h2>
+          <div class="header">
+            <img src="${FiadahLogo}" alt="FIADAH" />
+            <div>
+              <h1>Reporte de Asamblea General</h1>
+              <h2>FIADAH</h2>
+            </div>
+          </div>
           <div class="meta">Generado: ${now} | Sesión: ${sessionId}</div>
 
           <div class="stats-grid">
@@ -113,6 +128,24 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
             </tbody>
           </table>
 
+          <div class="section">
+            <h2>👥 Listado de Asistentes (${attendeeList.length})</h2>
+            ${attendeeList.length === 0 ? `
+              <p>Sin asistentes registrados aún</p>
+            ` : `
+              <table>
+                <tr><th>Nombre</th><th>Tipo</th><th>Posición</th></tr>
+                ${attendeeList.map(a => `
+                  <tr>
+                    <td>${a.name}</td>
+                    <td>${a.type}</td>
+                    <td>${a.position ?? '—'}</td>
+                  </tr>
+                `).join('')}
+              </table>
+            `}
+          </div>
+
           <footer>Generado por Asamblea Manager Pro v2.0 | Desarrollado por Wilfredo Caban - WC Developer</footer>
         </body>
         </html>
@@ -154,6 +187,10 @@ export const ReportsSection = ({ sessionId, stats }: ReportsSectionProps) => {
         ["Presentes", String(stats.presentMembers)],
         ["Porcentaje de Asistencia", `${quorumPercentage}%`],
         ["Estado", stats.quorumAchieved ? "ALCANZADO" : "NO ALCANZADO"],
+        [],
+        ["LISTADO DE ASISTENTES"],
+        ["Nombre", "Tipo", "Posición"],
+        ...attendeeList.map((a) => [a.name, a.type, a.position ?? "—"]),
         [],
         ["Generado por Asamblea Manager Pro v2.0 | Desarrollado por Wilfredo Caban - WC Developer"],
       ];

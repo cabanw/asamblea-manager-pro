@@ -3,6 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { ReportsSection } from '@/components/ReportsSection';
 import { QUORUM_FRACTION } from '@/lib/quorum';
 
+interface AttendeeRow {
+  name: string;
+  type: 'Miembro' | 'Invitado';
+  position: string | null;
+}
+
 const AdminReports = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
   const [stats, setStats] = useState({
@@ -13,6 +19,7 @@ const AdminReports = () => {
     quorumRequired: QUORUM_FRACTION * 100,
     quorumAchieved: false,
   });
+  const [attendeeList, setAttendeeList] = useState<AttendeeRow[]>([]);
 
   useEffect(() => {
     loadActiveSession();
@@ -32,9 +39,15 @@ const AdminReports = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult] = await Promise.all([
+    const [membersResult, attendanceResult, attendanceDetailsResult] = await Promise.all([
       supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
       supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
+      supabase
+        .from('attendance_records')
+        .select('attendee_type, check_in_time, members:member_id (name, positions:position_id (name)), guests:guest_id (name)')
+        .eq('session_id', sessId)
+        .eq('is_present', true)
+        .order('check_in_time', { ascending: true }),
     ]);
 
     const totalMembers = membersResult.count || 0;
@@ -52,12 +65,28 @@ const AdminReports = () => {
       quorumRequired: quorumRequiredFraction * 100,
       quorumAchieved,
     });
+
+    const list: AttendeeRow[] = (attendanceDetailsResult.data || []).map((row: any) => {
+      if (row.attendee_type === 'member') {
+        return {
+          name: row.members?.name ?? 'Sin nombre',
+          type: 'Miembro' as const,
+          position: row.members?.positions?.name ?? null,
+        };
+      }
+      return {
+        name: row.guests?.name ?? 'Sin nombre',
+        type: 'Invitado' as const,
+        position: null,
+      };
+    });
+    setAttendeeList(list);
   };
 
   return (
     <div className="container mx-auto px-4 py-6">
       <h1 className="text-2xl font-bold mb-6">Reportes de Asamblea</h1>
-      <ReportsSection sessionId={sessionId} stats={stats} />
+      <ReportsSection sessionId={sessionId} stats={stats} attendeeList={attendeeList} />
     </div>
   );
 };

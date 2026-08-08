@@ -75,7 +75,7 @@ export default function AboutDeveloper() {
                 <Button variant="default" className="gap-2 bg-slate-900 hover:bg-slate-800 text-white" onClick={() => window.open('https://github.com/cabanw')}>
                   <Github className="h-4 w-4" /> /cabanw
                 </Button>
-                <Button variant="outline" className="gap-2 border-slate-200 hover:bg-slate-50 text-slate-700" onClick={() => window.open('mailto:contacto@ejemplo.com')}>
+                <Button variant="outline" className="gap-2 border-slate-200 hover:bg-slate-50 text-slate-700" onClick={() => window.open('mailto:wilfredo.caban@icloud.com')}>
                   <Mail className="h-4 w-4" /> Contactar
                 </Button>
               </div>

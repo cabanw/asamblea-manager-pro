@@ -37,18 +37,16 @@ export default function NominationBooth() {
     }
   });
 
-  // 3. Revisar si ya propuso antes
-  const { data: existingNominations, isLoading: isLoadingSubmitted } = useQuery({
-    queryKey: ['my-nominations', id, verifiedPin],
+  // 3. Revisar si ya propuso antes (vía RPC — no hay SELECT directo sobre nominations,
+  // para mantener las propuestas privadas: la tabla no tiene policy SELECT para anon)
+  const { data: hasNominated, isLoading: isLoadingSubmitted } = useQuery({
+    queryKey: ['has-nominated', id, verifiedPin],
     queryFn: async () => {
-      if (!verifiedPin) return [];
+      if (!verifiedPin) return false;
       const { data, error } = await (supabase as any)
-        .from('nominations')
-        .select('*')
-        .eq('election_id', id)
-        .eq('nominator_pin', verifiedPin);
+        .rpc('has_nominated', { p_election_id: id, p_nominator_pin: verifiedPin });
       if (error) throw error;
-      return data;
+      return data as boolean;
     },
     enabled: !!verifiedPin
   });
@@ -101,7 +99,7 @@ export default function NominationBooth() {
     },
     onSuccess: () => {
       toast.success('¡Tus propuestas han sido enviadas a confidencialidad!');
-      queryClient.invalidateQueries({ queryKey: ['my-nominations', id] });
+      queryClient.invalidateQueries({ queryKey: ['has-nominated', id] });
     },
     onError: (err: any) => {
       toast.error('Error al enviar propuestas: ' + err.message);
@@ -166,7 +164,7 @@ export default function NominationBooth() {
 
   if (isLoadingSubmitted) return <div className="text-center p-8">Validando estado...</div>;
 
-  if (existingNominations && existingNominations.length > 0) {
+  if (hasNominated) {
     return (
       <div className="container mx-auto py-12 px-4 max-w-md">
         <Card className="border-blue-200 border-2 shadow-lg">

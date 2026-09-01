@@ -27,18 +27,16 @@ export default function VotingBooth() {
     }
   });
 
-  // 2. Fetch User's Existing Votes (Requires Verified PIN)
-  const { data: existingVotes, isLoading: isLoadingVotes } = useQuery({
-    queryKey: ['my-votes', id, verifiedPin],
+  // 2. Check if this PIN has already voted (via RPC — no direct SELECT on votes,
+  // to keep ballots private: the votes table has no SELECT policy for voters)
+  const { data: hasVoted, isLoading: isLoadingVotes } = useQuery({
+    queryKey: ['has-voted', id, verifiedPin],
     queryFn: async () => {
-      if (!verifiedPin) return [];
+      if (!verifiedPin) return false;
       const { data, error } = await (supabase as any)
-        .from('votes')
-        .select('*')
-        .eq('election_id', id)
-        .eq('voter_pin', verifiedPin);
+        .rpc('has_voted', { p_election_id: id, p_voter_pin: verifiedPin });
       if (error) throw error;
-      return data;
+      return data as boolean;
     },
     enabled: !!verifiedPin
   });
@@ -110,7 +108,7 @@ export default function VotingBooth() {
     },
     onSuccess: () => {
       toast.success('¡Voto emitido y verificado criptográficamente!');
-      queryClient.invalidateQueries({ queryKey: ['my-votes', id] });
+      queryClient.invalidateQueries({ queryKey: ['has-voted', id] });
     },
     onError: (err: any) => {
       toast.error('Error al emitir voto: ' + err.message);
@@ -179,7 +177,7 @@ export default function VotingBooth() {
   // --- STEP 2: ALREADY VOTED? ---
   if (isLoadingVotes) return <div className="text-center p-8">Cargando status electoral...</div>;
 
-  if (existingVotes && existingVotes.length > 0) {
+  if (hasVoted) {
     return (
       <div className="container mx-auto py-12 px-4 max-w-md">
         <Card className="border-green-200 border-2 shadow-lg">

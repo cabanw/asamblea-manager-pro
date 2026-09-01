@@ -477,7 +477,7 @@ export type Database = {
           election_id: string
           id: string
           position_voted: string
-          voter_id: string
+          voter_pin: string
         }
         Insert: {
           candidate_id: string
@@ -485,7 +485,7 @@ export type Database = {
           election_id: string
           id?: string
           position_voted: string
-          voter_id: string
+          voter_pin: string
         }
         Update: {
           candidate_id?: string
@@ -493,7 +493,7 @@ export type Database = {
           election_id?: string
           id?: string
           position_voted?: string
-          voter_id?: string
+          voter_pin?: string
         }
         Relationships: [
           {
@@ -509,6 +509,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "elections"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_voter_pin_fkey"
+            columns: ["voter_pin"]
+            isOneToOne: false
+            referencedRelation: "assembly_attendance"
+            referencedColumns: ["voter_pin"]
           },
         ]
       }
@@ -531,6 +538,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      has_voted: {
+        Args: { p_election_id: string; p_voter_pin: string }
+        Returns: boolean
+      }
+      has_nominated: {
+        Args: { p_election_id: string; p_nominator_pin: string }
         Returns: boolean
       }
     }

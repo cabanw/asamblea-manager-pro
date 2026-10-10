@@ -141,7 +141,7 @@ export const PositionManager = () => {
                     <TableCell>
                       <Button variant="outline" size="icon" className="mr-2" onClick={() => {
                         setEditingPosition(p);
-                        setFormData({ name: p.name, type: p.type, quorum_weight: p.quorum_weight || 1 });
+                        setFormData({ name: p.name, type: p.type, quorum_weight: p.quorum_weight === 0 ? 0 : 1 });
                         setDialogOpen(true);
                       }}>
                         <Edit className="h-4 w-4" />
@@ -195,7 +195,19 @@ export const PositionManager = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="quorum_weight">Quorum Weight</Label>
-              <Input id="quorum_weight" type="number" value={formData.quorum_weight} onChange={(e) => setFormData({ ...formData, quorum_weight: parseInt(e.target.value) || 1 })} />
+              {/* Solo 0 o 1: el quórum cuenta únicamente quorum_weight = 1 (ver src/lib/quorum.ts) */}
+              <Select
+                value={String(formData.quorum_weight)}
+                onValueChange={(value) => setFormData({ ...formData, quorum_weight: Number(value) })}
+              >
+                <SelectTrigger id="quorum_weight">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 — Con derecho a voto (cuenta para quórum)</SelectItem>
+                  <SelectItem value="0">0 — Sin voto (no cuenta para quórum)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <Button onClick={handleSave} className="w-full">Save Position</Button>
           </div>

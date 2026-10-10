@@ -158,17 +158,46 @@ export const RegisterMember = ({ sessionId, onSuccess }: RegisterMemberProps) =>
     setLoading(true);
 
     try {
-      // Check if member already exists (skip lookup when no ID was given,
-      // otherwise the first ID-less registrant would match every later one)
-      const existingMember = validatedData.id_number
-        ? (
-            await supabase
-              .from("members")
-              .select("id, is_active")
-              .eq("id_number", validatedData.id_number)
-              .maybeSingle()
-          ).data
-        : null;
+      // Buscar primero por ID; si no hay ID o no aparece, por nombre exacto.
+      // Sin el fallback por nombre, registrar a alguien sin ID creaba un duplicado
+      // del miembro ya importado (pasó el 2026-08-08 con 2 ministros, inflando el quórum).
+      let existingMember: { id: string; is_active: boolean | null } | null = null;
+
+      if (validatedData.id_number) {
+        const { data } = await supabase
+          .from("members")
+          .select("id, is_active")
+          .eq("id_number", validatedData.id_number)
+          .maybeSingle();
+        existingMember = data;
+      }
+
+      if (!existingMember) {
+        // ilike sin comodines = igualdad sin distinguir mayúsculas; se escapan % _ \ del nombre
+        const namePattern = validatedData.name.replace(/[\\%_]/g, (c) => `\\${c}`);
+        const { data: nameMatches, error: nameError } = await supabase
+          .from("members")
+          .select("id, is_active, id_number")
+          .ilike("name", namePattern)
+          .limit(2);
+        if (nameError) throw nameError;
+
+        if (nameMatches && nameMatches.length > 1) {
+          toast.error(`Hay más de un miembro llamado "${validatedData.name}". Ingrese el número de ID para identificarlo.`);
+          setLoading(false);
+          return;
+        }
+
+        const match = nameMatches?.[0];
+        if (match) {
+          if (validatedData.id_number && match.id_number && match.id_number !== validatedData.id_number) {
+            toast.error(`Ya existe "${validatedData.name}" con otro número de ID (${match.id_number}). Verifique el ID antes de registrar.`);
+            setLoading(false);
+            return;
+          }
+          existingMember = match;
+        }
+      }
 
       let memberId = existingMember?.id;
       let isActive = existingMember?.is_active ?? true;

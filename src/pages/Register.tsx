@@ -6,7 +6,7 @@ import { QuorumStatus } from '@/components/QuorumStatus';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, UserPlus } from 'lucide-react';
-import { QUORUM_FRACTION } from '@/lib/quorum';
+import { QUORUM_FRACTION, fetchQuorumStats } from '@/lib/quorum';
 
 const Register = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
@@ -37,30 +37,16 @@ const Register = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [votingMembersResult, attendanceResult] = await Promise.all([
-      // Quórum estatutario: solo cuentan miembros activos con posición de derecho a voto
-      // (positions.quorum_weight = 1). position_id null queda excluido por el inner join.
-      supabase
-        .from('members')
-        .select('id, positions!inner(quorum_weight)')
-        .eq('is_active', true)
-        .eq('positions.quorum_weight', 1),
-      supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
-    ]);
-
-    const totalMembers = votingMembersResult.data?.length || 0;
-    const attendance = attendanceResult.data || [];
-    const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
-    const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * totalMembers);
+    const quorum = await fetchQuorumStats(sessId);
+    if (!quorum) return;
 
     setStats({
-      totalMembers,
-      presentMembers,
-      totalGuests: presentGuests,
-      presentGuests,
+      totalMembers: quorum.totalMembers,
+      presentMembers: quorum.presentMembers,
+      totalGuests: quorum.presentGuests,
+      presentGuests: quorum.presentGuests,
       quorumRequired: QUORUM_FRACTION * 100,
-      quorumAchieved: totalMembers > 0 && presentMembers >= membersNeededForQuorum,
+      quorumAchieved: quorum.quorumAchieved,
     });
   };
 

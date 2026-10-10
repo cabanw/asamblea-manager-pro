@@ -46,10 +46,12 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
 
   useEffect(() => {
     if (!dialogOpen) return;
+    // Mismo denominador que fetchQuorumStats: activos con posición de voto (quorum_weight = 1).
     supabase
       .from('members')
-      .select('id', { count: 'exact', head: true })
+      .select('id, positions!inner(quorum_weight)', { count: 'exact', head: true })
       .eq('is_active', true)
+      .eq('positions.quorum_weight', 1)
       .then(({ count }) => setActiveMemberCount(count ?? 0));
   }, [dialogOpen]);
 
@@ -270,7 +272,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ currentSessionId
                   <p className="text-sm text-muted-foreground">
                     {activeMemberCount === null
                       ? 'Cargando...'
-                      : `${activeMemberCount} miembros activos — quórum requerido: ${Math.ceil(QUORUM_FRACTION * activeMemberCount)} (2/3, fijo por reglamento)`}
+                      : `${activeMemberCount} miembros activos con derecho a voto — quórum requerido: ${Math.ceil(QUORUM_FRACTION * activeMemberCount)} (2/3, fijo por reglamento)`}
                   </p>
                 </div>
                 <Button onClick={handleCreateSession} className="w-full">

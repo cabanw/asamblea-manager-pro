@@ -41,7 +41,7 @@ As of 2026-08-31 the Supabase MCP `apply_migration` tool has been failing OAuth 
 
 Quorum is 2/3, defined once in `src/lib/quorum.ts` as `QUORUM_FRACTION`. Never hardcode `2/3` elsewhere — a prior regression had `QuorumStatus.tsx`, `ReportsSection.tsx`, and `AdminReports.tsx` doing exactly that.
 
-The subtler rule: quorum's denominator (`totalMembers`) is **not** every active member — it's active members whose `positions.quorum_weight = 1` (voting-eligible positions per FIADAH bylaws; e.g. "Ministro Certificado" without pastor role and administrative positions like Secretary/Treasurer carry weight 0). Members with no `position_id` are excluded, not counted as non-voting. This is computed with an inner join:
+The subtler rule: quorum's denominator (`totalMembers`) is **not** every active member — it's active members whose `positions.quorum_weight = 1` (voting-eligible positions per FIADAH bylaws). As of 2026-10-10 all four live positions — Ministro Ordenado, Ministro Certificado, Ministro Licenciado, Delegado Pastor — have weight 1, so in practice a member drops out of quorum only by being inactive or having no position; the weight-0 path exists in code but no position currently uses it. Members with no `position_id` are excluded, not counted as non-voting. This is computed with an inner join:
 
 ```typescript
 supabase.from('members')
@@ -50,7 +50,9 @@ supabase.from('members')
   .eq('positions.quorum_weight', 1)
 ```
 
-This pattern is duplicated (not abstracted) across `src/pages/Index.tsx`, `src/pages/Attendance.tsx`, and `src/pages/Register.tsx` — each page independently fetches its own stats. `Attendance.tsx` also subscribes to realtime changes on both `attendance_records` and `members` (member activation/deactivation or position changes must recompute the denominator live during an event); `Index.tsx` and `Register.tsx` do not have realtime subscriptions and only refresh on their own action callbacks.
+The numerator (`presentMembers`) must apply the **same** filter to who is present: `attendee_type = 'member'` AND `members.is_active = true` AND `positions.quorum_weight = 1`. An inactive member, a member with no position, or (if one is ever created) a member in a weight-0 position can check in (and appears in attendee listings) but must not move the quorum count. Before 2026-10-10 the numerator counted every present `member` row while the denominator was voting-only, which could show quorum achieved when it wasn't.
+
+Quorum is attendance-based against the fixed total — **not** 2/3 of those present (that interpretation was explicitly rejected). Both halves live in one place: `fetchQuorumStats(sessionId)` in `src/lib/quorum.ts`, used by `Index.tsx`, `Attendance.tsx`, `Register.tsx` and `AdminReports.tsx`. Don't re-inline these queries in a page. `SessionManager.tsx` (the "quórum requerido" hint when creating a session) and `MemberManager.tsx` still run their own denominator-only count with the same inner-join filter — keep them in sync if the rule changes. `Attendance.tsx` also subscribes to realtime changes on both `attendance_records` and `members` (member activation/deactivation or position changes must recompute the denominator live during an event); `Index.tsx` and `Register.tsx` do not have realtime subscriptions and only refresh on their own action callbacks.
 
 `QuorumStatus.tsx` is a pure presentational component — it receives `totalMembers`/`presentMembers`/`quorumAchieved` as props and does not know about `positions` or voting weight.
 

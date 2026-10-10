@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { ReportsSection } from '@/components/ReportsSection';
-import { QUORUM_FRACTION } from '@/lib/quorum';
+import { QUORUM_FRACTION, fetchQuorumStats } from '@/lib/quorum';
 
 interface AttendeeRow {
   name: string;
@@ -39,9 +39,8 @@ const AdminReports = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [membersResult, attendanceResult, attendanceDetailsResult] = await Promise.all([
-      supabase.from('members').select('id', { count: 'exact' }).eq('is_active', true),
-      supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
+    const [quorum, attendanceDetailsResult] = await Promise.all([
+      fetchQuorumStats(sessId),
       supabase
         .from('attendance_records')
         .select('attendee_type, check_in_time, members:member_id (name, positions:position_id (name)), guests:guest_id (name)')
@@ -50,21 +49,16 @@ const AdminReports = () => {
         .order('check_in_time', { ascending: true }),
     ]);
 
-    const totalMembers = membersResult.count || 0;
-    const attendance = attendanceResult.data || [];
-    const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
-    const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-    const quorumRequiredFraction = QUORUM_FRACTION;
-    const quorumAchieved = totalMembers > 0 && (presentMembers / totalMembers) >= quorumRequiredFraction;
-
-    setStats({
-      totalMembers,
-      presentMembers,
-      totalGuests: presentGuests, // Assuming total guests are those present as there's no other data source
-      presentGuests,
-      quorumRequired: quorumRequiredFraction * 100,
-      quorumAchieved,
-    });
+    if (quorum) {
+      setStats({
+        totalMembers: quorum.totalMembers,
+        presentMembers: quorum.presentMembers,
+        totalGuests: quorum.presentGuests, // Assuming total guests are those present as there's no other data source
+        presentGuests: quorum.presentGuests,
+        quorumRequired: QUORUM_FRACTION * 100,
+        quorumAchieved: quorum.quorumAchieved,
+      });
+    }
 
     const list: AttendeeRow[] = (attendanceDetailsResult.data || []).map((row: any) => {
       if (row.attendee_type === 'member') {

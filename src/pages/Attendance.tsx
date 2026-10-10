@@ -6,7 +6,7 @@ import { QuorumStatus } from '@/components/QuorumStatus';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, UserPlus } from 'lucide-react';
-import { QUORUM_FRACTION } from '@/lib/quorum';
+import { QUORUM_FRACTION, fetchQuorumStats } from '@/lib/quorum';
 import { toast } from 'sonner';
 
 interface RosterMember {
@@ -18,13 +18,6 @@ interface RosterMember {
 interface LeftMember extends RosterMember {
   attendanceId: string;
 }
-
-type AttendanceRow = {
-  id: string;
-  session_id: string;
-  attendee_type: 'member' | 'guest';
-  is_present: boolean;
-};
 
 const Attendance = () => {
   const [sessionId, setSessionId] = useState<string | undefined>();
@@ -193,42 +186,12 @@ const Attendance = () => {
   };
 
   const loadStats = async (sessId: string) => {
-    const [votingMembersResult, attendanceResult] = await Promise.all([
-      // Quórum estatutario: solo cuentan miembros activos con posición de derecho a voto
-      // (positions.quorum_weight = 1). position_id null queda excluido por el inner join.
-      supabase
-        .from('members')
-        .select('id, positions!inner(quorum_weight)')
-        .eq('is_active', true)
-        .eq('positions.quorum_weight', 1),
-      supabase.from('attendance_records').select('*').eq('session_id', sessId).eq('is_present', true),
-    ]);
-
-    if (votingMembersResult.error) {
-      console.error('Error counting members:', votingMembersResult.error);
-      return;
-    }
-    const totalMembers = votingMembersResult.data?.length || 0;
-    if (attendanceResult.error) {
-      console.error('Error loading attendance:', attendanceResult.error);
-      return;
-    }
-
-    const attendance = (attendanceResult.data || []) as AttendanceRow[];
-    const presentMembers = attendance.filter(a => a.attendee_type === 'member').length;
-    const presentGuests = attendance.filter(a => a.attendee_type === 'guest').length;
-
-    const quorumRequired = QUORUM_FRACTION * 100; // ~66.6667%
-    const membersNeededForQuorum = Math.ceil(QUORUM_FRACTION * totalMembers);
-    const quorumAchieved = totalMembers > 0 && presentMembers >= membersNeededForQuorum;
+    const quorum = await fetchQuorumStats(sessId);
+    if (!quorum) return;
 
     setStats({
-      totalMembers,
-      presentMembers,
-      presentGuests,
-      quorumRequired,
-      quorumAchieved,
-      // membersNeededForQuorum, // uncomment if you want to pass to QuorumStatus
+      ...quorum,
+      quorumRequired: QUORUM_FRACTION * 100, // ~66.6667%
     });
   };
 

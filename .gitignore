@@ -44,3 +44,6 @@ Manual/
 
 # Local debug screenshots
 Error Screenshots/
+
+# Supabase CLI local cache (regenerated on every CLI run)
+supabase/.temp/

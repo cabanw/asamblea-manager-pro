@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -7,11 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 
-interface Position {
-  id: string;
-  name: string;
-}
-
+// El cargo no se pide aquí: register-attendance lo toma de la matrícula. Un miembro que no
+// aparece en la matrícula queda como invitado y no cuenta para el quórum.
 const PublicRegistration = () => {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -20,25 +17,11 @@ const PublicRegistration = () => {
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [type, setType] = useState('');
-  const [positionId, setPositionId] = useState('');
-  const [positions, setPositions] = useState<Position[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const loadPositions = async () => {
-      const { data } = await supabase
-        .from('positions')
-        .select('id, name')
-        .eq('quorum_weight', 1)
-        .order('name');
-      if (data) setPositions(data);
-    };
-    loadPositions();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !phone || !type || (type === 'member' && !positionId)) {
+    if (!name || !phone || !type) {
       toast({ variant: 'destructive', title: 'Error', description: 'Por favor complete todos los campos requeridos.' });
       return;
     }
@@ -52,26 +35,30 @@ const PublicRegistration = () => {
           phone,
           id_number: idNumber || undefined,
           type,
-          position_id: type === 'member' ? positionId : null,
         },
       });
 
-      if (error) {
-        throw new Error(error.message);
+      if (error || !data?.success) {
+        throw new Error('register-attendance failed');
       }
 
-      toast({ title: 'Éxito', description: 'Su asistencia ha sido registrada.' });
+      if (!data.alreadyRegistered) {
+        toast({ title: 'Éxito', description: 'Su asistencia ha sido registrada.' });
+      }
       navigate('/registration-success', {
         state: {
           name,
           id_number: idNumber || null,
-          positionName: data?.positionName,
-          voter_pin: data?.voter_pin,
-          is_active: data?.is_active,
+          positionName: data.positionName,
+          voter_pin: data.voter_pin,
+          is_active: data.is_active,
+          alreadyRegistered: data.alreadyRegistered === true,
+          treatedAsGuest: data.treatedAsGuest === true,
         },
       });
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo registrar la asistencia.' });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar el registro. Intente de nuevo o acérquese a la mesa de registro.' });
     } finally {
       setIsLoading(false);
     }
@@ -127,24 +114,6 @@ const PublicRegistration = () => {
                 </SelectContent>
               </Select>
             </div>
-
-            {type === 'member' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Credencial / Categoría de Miembro</label>
-                <Select onValueChange={setPositionId} value={positionId} disabled={isLoading}>
-                  <SelectTrigger id="position">
-                    <SelectValue placeholder="Seleccione su credencial" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions.map((position) => (
-                      <SelectItem key={position.id} value={position.id}>
-                        {position.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
 
             <Button type="submit" className="w-full mt-6" disabled={isLoading}>
               {isLoading ? 'Registrando...' : 'Registrar'}

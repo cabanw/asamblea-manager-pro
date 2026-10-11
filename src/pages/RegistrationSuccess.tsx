@@ -10,7 +10,25 @@ const RegistrationSuccess = () => {
     positionName?: string;
     voter_pin?: string;
     is_active?: boolean;
+    alreadyRegistered?: boolean;
+    treatedAsGuest?: boolean;
   } | null;
+
+  if (state?.alreadyRegistered) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 p-4">
+        <Card className="w-full max-w-md border-blue-100 shadow-sm">
+          <CardHeader className="bg-blue-50/50 pb-4">
+            <CardTitle className="text-center text-blue-700">Ya estás registrado</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center pt-4">
+            <p className="text-zinc-600">Tu asistencia a esta sesión ya estaba registrada. No necesitas hacer nada más.</p>
+            <p className="text-zinc-500 text-sm mt-2">Puede cerrar esta ventana de forma segura.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 p-4">
@@ -24,6 +42,14 @@ const RegistrationSuccess = () => {
             {!state && <p className="text-zinc-500 text-sm mt-2">Puede cerrar esta ventana de forma segura.</p>}
           </CardContent>
         </Card>
+
+        {state?.treatedAsGuest && (
+          <Card className="border-l-4 border-amber-400 bg-amber-50">
+            <CardContent className="text-center py-4 text-amber-800 text-sm">
+              Te registramos como invitado; si eres ministro, acércate a la mesa de registro.
+            </CardContent>
+          </Card>
+        )}
 
         {state && state.name && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150 fill-mode-both">

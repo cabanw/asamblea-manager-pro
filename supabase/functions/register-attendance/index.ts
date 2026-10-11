@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendSms } from "../_shared/sms.ts";
 
 const corsHeaders = {
@@ -13,6 +13,93 @@ const generateVoterPin = (): string =>
 // v2.0: votación desactivada para el evento en vivo. Cambiar a true para reactivar en v2.1.
 const VOTING_ENABLED = false;
 
+const GENERIC_ERROR = "No se pudo completar el registro";
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+// Nunca devolver error.message de Postgres al cliente: el detalle va al log de la función.
+const fail = (context: string, error: unknown) => {
+  console.error(`register-attendance: ${context}`, error);
+  return json({ error: GENERIC_ERROR }, 500);
+};
+
+type MemberMatch = {
+  id: string;
+  is_active: boolean | null;
+  phone: string | null;
+  positions: { name: string } | null;
+};
+
+// Busca en la matrícula por id_number y, como respaldo, por phone. Nunca crea miembros:
+// este endpoint es anónimo, así que un desconocido no puede darse de alta como ministro
+// con voto (inflaría el total y los presentes del quórum).
+async function findRosterMember(
+  db: SupabaseClient,
+  idNumber: string | null,
+  phone: string,
+): Promise<{ member: MemberMatch | null; matchedBy: "id_number" | "phone" | null }> {
+  const select = "id, is_active, phone, positions:position_id (name)";
+
+  if (idNumber) {
+    const { data, error } = await db.from("members").select(select).eq("id_number", idNumber).maybeSingle();
+    if (error) throw error;
+    if (data) return { member: data as unknown as MemberMatch, matchedBy: "id_number" };
+  }
+
+  // limit(2): si dos miembros comparten teléfono no adivinamos cuál es
+  const { data, error } = await db.from("members").select(select).eq("phone", phone).limit(2);
+  if (error) throw error;
+  if (data && data.length === 1) return { member: data[0] as unknown as MemberMatch, matchedBy: "phone" };
+
+  return { member: null, matchedBy: null };
+}
+
+// Reutiliza al invitado si ya existe con ese teléfono, para que el chequeo de doble
+// check-in funcione también con invitados (si no, cada envío sería un guest nuevo).
+async function findOrCreateGuest(
+  db: SupabaseClient,
+  name: string,
+  phone: string,
+  idNumber: string | null,
+): Promise<string> {
+  const { data: existing, error: findError } = await db
+    .from("guests")
+    .select("id")
+    .eq("phone", phone)
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (findError) throw findError;
+  if (existing && existing.length > 0) return existing[0].id;
+
+  const { data: guest, error: insertError } = await db
+    .from("guests")
+    .insert({ name, phone, id_number: idNumber })
+    .select("id")
+    .single();
+  if (insertError) throw insertError;
+  return guest.id;
+}
+
+async function isAlreadyRegistered(
+  db: SupabaseClient,
+  sessionId: string,
+  column: "member_id" | "guest_id",
+  id: string,
+): Promise<boolean> {
+  const { data, error } = await db
+    .from("attendance_records")
+    .select("id")
+    .eq("session_id", sessionId)
+    .eq(column, id)
+    .limit(1);
+  if (error) throw error;
+  return !!data && data.length > 0;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,23 +110,25 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !serviceRoleKey) {
-      return new Response(JSON.stringify({ error: "Missing environment variables" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return fail("missing environment variables", null);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { token, name, phone, id_number, type, position_id } = await req.json();
+    // position_id del cliente se ignora a propósito: el cargo sale solo de la matrícula.
+    const body = await req.json();
+    const token = typeof body.token === "string" ? body.token : "";
+    const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
+    const phone = typeof body.phone === "string" ? body.phone.trim().slice(0, 20) : "";
+    const idNumber = typeof body.id_number === "string" && body.id_number.trim()
+      ? body.id_number.trim().slice(0, 50)
+      : null;
+    const type = body.type;
 
-    if (!token || !name || !phone || !type) {
-      return new Response(JSON.stringify({ error: "Token, name, phone, and type are required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!token || !name || !phone || (type !== "member" && type !== "guest")) {
+      return json({ error: "Token, name, phone, and type are required" }, 400);
     }
 
     const { data: link, error: linkError } = await supabaseAdmin
@@ -49,143 +138,96 @@ serve(async (req) => {
       .single();
 
     if (linkError || !link) {
-      return new Response(JSON.stringify({ error: "Invalid or expired token" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Invalid or expired token" }, 404);
     }
 
     if (new Date(link.expires_at) < new Date()) {
-      return new Response(JSON.stringify({ error: "Registration link has expired" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Registration link has expired" }, 400);
     }
 
-    // --- Guest path: no member lookup, no voting rights ---
-    if (type === "guest") {
-      const { data: guest, error: guestError } = await supabaseAdmin
-        .from("guests")
-        .insert({ name, phone, id_number: id_number || null })
-        .select("id")
-        .single();
+    const sessionId: string = link.assembly_id;
 
-      if (guestError) {
-        return new Response(JSON.stringify({ error: guestError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // --- Miembro: solo si está en la matrícula ---
+    if (type === "member") {
+      const { member, matchedBy } = await findRosterMember(supabaseAdmin, idNumber, phone);
+
+      if (member) {
+        if (await isAlreadyRegistered(supabaseAdmin, sessionId, "member_id", member.id)) {
+          return json({ success: true, alreadyRegistered: true });
+        }
+
+        // Completar el teléfono de la matrícula si se le encontró por ID y no tenía.
+        if (matchedBy === "id_number" && !member.phone) {
+          const { error: phoneError } = await supabaseAdmin
+            .from("members")
+            .update({ phone })
+            .eq("id", member.id)
+            .is("phone", null);
+          if (phoneError) console.error("register-attendance: phone backfill failed", phoneError);
+        }
+
+        const isActive = member.is_active ?? true;
+
+        // Inactive members attend but don't get a voter PIN (no voting rights)
+        // With VOTING_ENABLED false, nobody gets a PIN during v2.0
+        let voter_pin: string | null = null;
+        if (VOTING_ENABLED && isActive) {
+          voter_pin = generateVoterPin();
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const { data: existing } = await supabaseAdmin
+              .from("attendance_records")
+              .select("id")
+              .eq("voter_pin", voter_pin)
+              .maybeSingle();
+            if (!existing) break;
+            voter_pin = generateVoterPin();
+          }
+        }
+
+        const { error: insertError } = await supabaseAdmin.from("attendance_records").insert({
+          session_id: sessionId,
+          attendee_type: "member",
+          member_id: member.id,
+          is_present: true,
+          voter_pin,
+        });
+        if (insertError) return fail("member attendance insert", insertError);
+
+        if (voter_pin) {
+          await sendSms(phone, `Su PIN de registro para la asamblea es: ${voter_pin}. Guárdelo para votar.`);
+        }
+
+        return json({
+          success: true,
+          voter_pin,
+          positionName: member.positions?.name ?? "Miembro",
+          is_active: isActive,
         });
       }
-
-      const { error: attendanceError } = await supabaseAdmin.from("attendance_records").insert({
-        session_id: link.assembly_id,
-        attendee_type: "guest",
-        guest_id: guest.id,
-        is_present: true,
-      });
-
-      if (attendanceError) {
-        return new Response(JSON.stringify({ error: attendanceError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ success: true, positionName: "Invitado" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // No está en la matrícula: cae al camino de invitado (sin voto, no cuenta en quórum).
     }
 
-    // --- Member path: cross-check against the real members table ---
-    const { data: existingMember } = await supabaseAdmin
-      .from("members")
-      .select("id, is_active")
-      .eq("phone", phone)
-      .maybeSingle();
+    // --- Invitado (elegido o miembro no encontrado) ---
+    const guestId = await findOrCreateGuest(supabaseAdmin, name, phone, idNumber);
 
-    let memberId: string;
-    let isActive = true;
-
-    if (existingMember) {
-      memberId = existingMember.id;
-      isActive = existingMember.is_active ?? true;
-    } else {
-      const { data: newMember, error: memberError } = await supabaseAdmin
-        .from("members")
-        .insert({
-          name,
-          phone,
-          id_number: id_number || null,
-          position_id: position_id || null,
-        })
-        .select("id, is_active")
-        .single();
-
-      if (memberError) {
-        return new Response(JSON.stringify({ error: memberError.message }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      memberId = newMember.id;
-      isActive = newMember.is_active ?? true;
+    if (await isAlreadyRegistered(supabaseAdmin, sessionId, "guest_id", guestId)) {
+      return json({ success: true, alreadyRegistered: true });
     }
 
-    let positionName = "Miembro";
-    if (position_id) {
-      const { data: position } = await supabaseAdmin
-        .from("positions")
-        .select("name")
-        .eq("id", position_id)
-        .maybeSingle();
-      if (position) positionName = position.name;
-    }
-
-    // Inactive members attend but don't get a voter PIN (no voting rights)
-    // With VOTING_ENABLED false, nobody gets a PIN during v2.0
-    let voter_pin: string | null = null;
-    if (VOTING_ENABLED && isActive) {
-      voter_pin = generateVoterPin();
-      for (let attempt = 0; attempt < 5; attempt++) {
-        const { data: existing } = await supabaseAdmin
-          .from("attendance_records")
-          .select("id")
-          .eq("voter_pin", voter_pin)
-          .maybeSingle();
-        if (!existing) break;
-        voter_pin = generateVoterPin();
-      }
-    }
-
-    const { error: insertError } = await supabaseAdmin.from("attendance_records").insert({
-      session_id: link.assembly_id,
-      attendee_type: "member",
-      member_id: memberId,
+    const { error: attendanceError } = await supabaseAdmin.from("attendance_records").insert({
+      session_id: sessionId,
+      attendee_type: "guest",
+      guest_id: guestId,
       is_present: true,
-      voter_pin,
     });
+    if (attendanceError) return fail("guest attendance insert", attendanceError);
 
-    if (insertError) {
-      return new Response(JSON.stringify({ error: insertError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (voter_pin) {
-      await sendSms(phone, `Su PIN de registro para la asamblea es: ${voter_pin}. Guárdelo para votar.`);
-    }
-
-    return new Response(
-      JSON.stringify({ success: true, voter_pin, positionName, is_active: isActive }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({
+      success: true,
+      positionName: "Invitado",
+      treatedAsGuest: type === "member",
+    });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return fail("unhandled", error);
   }
 });

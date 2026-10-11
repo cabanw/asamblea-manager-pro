@@ -29,51 +29,62 @@ const fail = (context: string, error: unknown) => {
 
 type MemberMatch = {
   id: string;
+  name: string;
   is_active: boolean | null;
-  phone: string | null;
   positions: { name: string } | null;
 };
 
-// Busca en la matrícula por id_number y, como respaldo, por phone. Nunca crea miembros:
-// este endpoint es anónimo, así que un desconocido no puede darse de alta como ministro
-// con voto (inflaría el total y los presentes del quórum).
+// Comparación de nombres tolerante a mayúsculas, acentos y espacios extra.
+const normalizeName = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+// Busca en la matrícula por id_number y, como respaldo, por phone, y exige además que el
+// nombre coincida. Los id_number son cortos y casi secuenciales: sin el chequeo de nombre,
+// un anónimo con el enlace podría marcar presentes a ministros ausentes (inflando el quórum)
+// o enumerar la matrícula. Nunca crea miembros ni escribe en members.
 async function findRosterMember(
   db: SupabaseClient,
   idNumber: string | null,
   phone: string,
-): Promise<{ member: MemberMatch | null; matchedBy: "id_number" | "phone" | null }> {
-  const select = "id, is_active, phone, positions:position_id (name)";
+  name: string,
+): Promise<MemberMatch | null> {
+  const select = "id, name, is_active, positions:position_id (name)";
+  const wanted = normalizeName(name);
+  const nameMatches = (m: MemberMatch) => normalizeName(m.name) === wanted;
 
   if (idNumber) {
     const { data, error } = await db.from("members").select(select).eq("id_number", idNumber).maybeSingle();
     if (error) throw error;
-    if (data) return { member: data as unknown as MemberMatch, matchedBy: "id_number" };
+    if (data && nameMatches(data as unknown as MemberMatch)) return data as unknown as MemberMatch;
   }
 
   // limit(2): si dos miembros comparten teléfono no adivinamos cuál es
   const { data, error } = await db.from("members").select(select).eq("phone", phone).limit(2);
   if (error) throw error;
-  if (data && data.length === 1) return { member: data[0] as unknown as MemberMatch, matchedBy: "phone" };
+  if (data && data.length === 1 && nameMatches(data[0] as unknown as MemberMatch)) {
+    return data[0] as unknown as MemberMatch;
+  }
 
-  return { member: null, matchedBy: null };
+  return null;
 }
 
-// Reutiliza al invitado si ya existe con ese teléfono, para que el chequeo de doble
-// check-in funcione también con invitados (si no, cada envío sería un guest nuevo).
+// Reutiliza al invitado si ya existe con ese teléfono y nombre, para que el chequeo de
+// doble check-in funcione también con invitados (si no, cada envío sería un guest nuevo).
+// Exigir el nombre evita registrar asistencia a nombre de otro invitado con solo su teléfono.
 async function findOrCreateGuest(
   db: SupabaseClient,
   name: string,
   phone: string,
   idNumber: string | null,
 ): Promise<string> {
-  const { data: existing, error: findError } = await db
+  const { data: candidates, error: findError } = await db
     .from("guests")
-    .select("id")
+    .select("id, name")
     .eq("phone", phone)
-    .order("created_at", { ascending: true })
-    .limit(1);
+    .order("created_at", { ascending: true });
   if (findError) throw findError;
-  if (existing && existing.length > 0) return existing[0].id;
+  const existing = (candidates || []).find((g) => normalizeName(g.name) === normalizeName(name));
+  if (existing) return existing.id;
 
   const { data: guest, error: insertError } = await db
     .from("guests")
@@ -149,21 +160,13 @@ serve(async (req) => {
 
     // --- Miembro: solo si está en la matrícula ---
     if (type === "member") {
-      const { member, matchedBy } = await findRosterMember(supabaseAdmin, idNumber, phone);
+      // No se rellena members.phone desde aquí: sería una escritura anónima persistente
+      // (un tercero podría asociar su teléfono a un ministro y recibir su PIN por SMS).
+      const member = await findRosterMember(supabaseAdmin, idNumber, phone, name);
 
       if (member) {
         if (await isAlreadyRegistered(supabaseAdmin, sessionId, "member_id", member.id)) {
           return json({ success: true, alreadyRegistered: true });
-        }
-
-        // Completar el teléfono de la matrícula si se le encontró por ID y no tenía.
-        if (matchedBy === "id_number" && !member.phone) {
-          const { error: phoneError } = await supabaseAdmin
-            .from("members")
-            .update({ phone })
-            .eq("id", member.id)
-            .is("phone", null);
-          if (phoneError) console.error("register-attendance: phone backfill failed", phoneError);
         }
 
         const isActive = member.is_active ?? true;
@@ -204,7 +207,9 @@ serve(async (req) => {
           is_active: isActive,
         });
       }
-      // No está en la matrícula: cae al camino de invitado (sin voto, no cuenta en quórum).
+      // No está en la matrícula (o el nombre no coincide): cae al camino de invitado
+      // (sin voto, no cuenta en quórum). La respuesta es la misma que para un desconocido,
+      // así que no revela si el id_number/phone existe en la matrícula.
     }
 
     // --- Invitado (elegido o miembro no encontrado) ---

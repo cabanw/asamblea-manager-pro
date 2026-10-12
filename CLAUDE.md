@@ -87,6 +87,10 @@ Three distinct ways attendance gets recorded, each with different auth context:
 
 Inactive members (`is_active = false`) can still check in and are recorded, but never receive a voter PIN and are excluded from the quorum denominator regardless of position.
 
+**QR self-registration requires the name to match the roster.** `register-attendance` finds the member by `id_number` (fallback: `phone`) and then also requires the typed name to equal `members.name` after `normalizeName` (accents, case and extra spaces ignored — nothing fuzzier). On a mismatch it silently records the person as a **guest**, who does not count toward quorum; this is deliberate (prevents marking absent ministers present by guessing short sequential `id_number`s). Event staff should review the guest list during check-in and re-register misfiled ministers via `/register`.
+
+**Church delegates:** the "Delegado" position (`delegado_pastor`, weight 1) counts toward quorum, but as of 2026-10-12 the roster has 0 members in it. Any delegates attending must be loaded into `members` with that position **before** the event, or they can only check in as guests.
+
 ### Reports without a backend
 
 `ReportsSection.tsx` generates PDF and CSV exports entirely client-side — PDF via a print-formatted `window.open()` + `window.print()` (user saves as PDF from the browser dialog), CSV via a manually-built string and a `Blob`/`URL.createObjectURL` download (the "Export to Excel" button produces this CSV, not a real `.xlsx` — Excel opens CSV fine, no spreadsheet library involved). No PDF/spreadsheet library is installed; don't add one without discussing it first, since this pattern is intentional (avoids a backend service and extra dependencies). Both exports include a "LISTADO DE ASISTENTES" attendee listing (name/type/position, members and guests) alongside the session summary and quorum analysis.

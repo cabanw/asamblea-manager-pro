@@ -14,7 +14,7 @@ interface AttendanceManagerProps {
 
 interface Attendee {
   id: string;
-  attendee_type: 'member' | 'guest';
+  attendee_type: string;
   is_present: boolean;
   check_in_time: string;
   check_out_time: string | null;

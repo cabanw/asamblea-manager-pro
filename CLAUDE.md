@@ -12,11 +12,12 @@ npm run lint          # eslint .
 npm test              # vitest (watch mode by default)
 npx vitest run         # single run, no watch
 npx vitest run path/to/file.test.ts   # run a single test file
+npx tsc --noEmit -p tsconfig.app.json # type-check (vite build does NOT); baseline is 0 errors as of 2026-10-12 — keep it there
 firebase deploy --only hosting        # deploy dist/ to Firebase Hosting (run npm run build first)
 firebase hosting:channel:list         # shows last release time of the live channel
 ```
 
-**Checking what's actually in prod:** there's no version stamp in the app (`package.json` version is `0.0.0`), and deploys are manual — `main` can sit ahead of prod for weeks (it did: Aug 7 → Oct 10, 2026). To tell which build is live, compare the hashed bundle name in the live `index.html` with a local `npm run build` of the commit you suspect:
+**Checking what's actually in prod:** there's no version stamp in the app (`package.json` version is `0.0.0`), and deploys are manual — there is no CI (no `.github/workflows`, 0 GitHub Actions), so pushing to `main` deploys nothing. `main` can sit ahead of prod for weeks (it did: Aug 7 → Oct 10, 2026). To tell which build is live, compare the hashed bundle name in the live `index.html` with a local `npm run build` of the commit you suspect:
 
 ```sh
 curl -s https://asamblea-manager-pro-148-cf9ee.web.app/ | grep -o 'assets/index-[^"]*'
@@ -27,7 +28,7 @@ Same hash = same code. If they differ, grep the live JS for a string unique to a
 
 Supabase schema changes go in `supabase/migrations/*.sql`. This project's migration history has drifted from what `supabase db push` expects (documented as a known issue in past commits) — apply new migrations via the Supabase MCP `apply_migration` tool (or the dashboard), not the CLI, and regenerate `src/integrations/supabase/types.ts` afterward (`supabase gen types typescript --project-id <id>`) rather than hand-editing it, except as a temporary stopgap to keep the build green before a migration has actually been applied.
 
-As of 2026-08-31 the Supabase MCP `apply_migration` tool has been failing OAuth ("Unrecognized client_id"), so recent fixes (the votes/nominations RLS closure below) were applied by hand via the Supabase SQL Editor and were **not** back-filled as files in `supabase/migrations/` — the last file there is `20260802000001_enable_realtime_attendance_and_members.sql`. The voting schema was later back-filled as `20261010000001_backfill_voting_schema.sql` (reconstructed from production, committed but not applied). Drift ran both ways: `20260713000001`–`20260713000003` existed as files for months before being applied to production on 2026-10-10 (see Quorum below). Don't assume `supabase/migrations/*.sql` is a complete picture of live schema/RLS state; when in doubt, read the actual policies/columns via the dashboard or MCP `execute_sql` before writing a new migration on top of an assumption.
+As of 2026-08-31 the Supabase MCP `apply_migration` tool has been failing OAuth ("Unrecognized client_id"), so recent fixes (the votes/nominations RLS closure below) were applied by hand via the Supabase SQL Editor and were not written as files at the time. Several have since been back-filled as **record-only** files (already live in prod — never re-apply them, and never `supabase db push`/`reset`): `20261010000001_backfill_voting_schema.sql` (voting schema, reconstructed from production), `20261012000001_attendance_unique_indexes.sql` (partial unique indexes `uq_attendance_session_member`/`uq_attendance_session_guest`), and `20261012000002`/`20261012000003` (voting-only `total_active_members` trigger functions). The 2026-10-12 files were verified against prod definitions. Reading prod from the CLI doesn't work on this machine: the project is linked and logged in, but `supabase db dump` needs Docker Desktop, which isn't installed — use the dashboard SQL Editor (`pg_get_functiondef`, `pg_indexes`, `pg_policies`) instead. Drift ran both ways: `20260713000001`–`20260713000003` existed as files for months before being applied to production on 2026-10-10 (see Quorum below). Don't assume `supabase/migrations/*.sql` is a complete picture of live schema/RLS state; when in doubt, read the actual policies/columns via the dashboard or MCP `execute_sql` before writing a new migration on top of an assumption.
 
 **Before pointing a new FK or RLS check at a table**, grep the whole repo (not just `src/`) to confirm app code actually reads/writes it — a plausible-looking table with an existing FK in `types.ts` can be dead schema (see `assembly_attendance` below). Copying an existing FK/RLS pattern without checking first has caused a real bug here once already.
 
@@ -86,6 +87,10 @@ Three distinct ways attendance gets recorded, each with different auth context:
 - **Authenticated staff** (`RegisterMember.tsx`/`RegisterGuest.tsx`, under `/register`) — direct Supabase client calls, RLS-gated to admin/sergeant/secretary.
 - **Public QR self-registration** (`PublicRegistration.tsx`, no login) — invokes the `register-attendance` Edge Function using a time-limited token from `assembly_registration_links`, which runs with the service role key server-side (bypasses RLS by design, since the caller is anonymous).
 - **QR-scanned staff-assisted registration** — same `RegisterMember.tsx` form, but pre-fills from a signed QR payload (`src/lib/security.ts`, HMAC-SHA256 via `VITE_QR_SECRET`) instead of manual typing.
+
+Double check-in is blocked at the database level by partial unique indexes on `attendance_records` — `(session_id, member_id) WHERE member_id IS NOT NULL` and `(session_id, guest_id) WHERE guest_id IS NOT NULL` — on top of the `isAlreadyRegistered` check in `register-attendance`. A duplicate insert fails with `23505`.
+
+**`send-sms` Edge Function: do not deploy as-is (H-3).** `supabase/functions/send-sms/index.ts` has no auth or admin check — it sends any `message` to any `to` for whoever calls it (the anon key suffices). It needs an admin-role check before deploying. `register-attendance` doesn't go through it; it imports `_shared/sms.ts` directly.
 
 Inactive members (`is_active = false`) can still check in and are recorded, but never receive a voter PIN and are excluded from the quorum denominator regardless of position.
 

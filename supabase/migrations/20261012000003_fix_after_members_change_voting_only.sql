@@ -5,8 +5,7 @@
 -- Keeps WHERE true: the project's safeupdate guard rejects an UPDATE without a
 -- WHERE clause (see 20260801000002).
 --
--- Body reconstructed in the repo from the intended change; prod's definition
--- was not read back here. Verify with:
+-- Logic verified against production on 2026-10-12 (pg_get_functiondef):
 --   select pg_get_functiondef('public.update_assembly_sessions_on_member_change'::regproc);
 CREATE OR REPLACE FUNCTION public.update_assembly_sessions_on_member_change()
 RETURNS TRIGGER AS $$
